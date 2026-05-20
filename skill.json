@@ -1,0 +1,6 @@
+{
+  "name": "SkillAlchemy",
+  "version": "v1.0",
+  "type": "orchestrator",
+  "description": "Skill-Alchemy 编排器 — 用户入口，编排 Lens 和 LEAP"
+}
