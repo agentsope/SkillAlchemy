@@ -1,0 +1,118 @@
+{
+  "skill": "bounded-loop",
+  "phase": "D",
+  "tier": "core",
+  "sop_index": "O7",
+  "extracted_operations": [
+    {
+      "id": "OP-1",
+      "name": "retry-counter-in-state",
+      "trigger": "Any cyclic LM workflow (tool-call -> reflect -> retry, agent self-critique, plan-act-observe).",
+      "action": "Add an explicit integer counter to the workflow's persistent state (LangGraph TypedDict field with operator.add reducer, CrewAI shared context dict, app-side dict for Claude/OpenAI SDKs). Increment in the body. Exit when counter >= N.",
+      "output": "A bounded loop with deterministic termination after N iterations regardless of LM behaviour.",
+      "evidence_anchors": ["S1", "S2"],
+      "framework_mapping": {
+        "langgraph": "state['retries']: Annotated[int, operator.add] + conditional edge -> END",
+        "crewai": "shared dict in Crew context or Flow state; check before each Task",
+        "claude_sdk": "for i in range(max_iter): ... break-on-stop",
+        "openai_agents": "Run(max_turns=N)"
+      }
+    },
+    {
+      "id": "OP-2",
+      "name": "stagnation-detection",
+      "trigger": "Loop is bounded by counter but each iteration is repeating itself (same tool args, same error message, same generated diff).",
+      "action": "Store the previous iteration's distinguishing artifact (last_error, last_tool_call_hash, last_output_hash) in state. Before incrementing the counter, compare with previous; if equal, exit immediately with status 'stagnation' rather than burning N iterations on identical work.",
+      "output": "Fast-fail on infinite loops that the counter alone would only catch after N expensive iterations.",
+      "evidence_anchors": ["S1", "S3"],
+      "framework_mapping": {
+        "langgraph": "state['last_error']: str | None + conditional edge checks equality",
+        "crewai": "task callback that hashes output; stored in Crew context",
+        "claude_sdk": "compare tool_use blocks across iterations",
+        "openai_agents": "compare tool_calls in Run steps"
+      }
+    },
+    {
+      "id": "OP-3",
+      "name": "human-or-outer-loop-escalation",
+      "trigger": "Counter exhausted or stagnation detected.",
+      "action": "Do not raise / crash. Route to a designated escalation node: LangGraph node that calls interrupt(), CrewAI Task with human_input=True, Claude tool call that surfaces to user, or app-level fallback path. The escalation node must include the loop's final state (counter, last_error, partial output) so a human or outer agent can diagnose.",
+      "output": "A graceful 'give up and ask' branch with full context preserved.",
+      "evidence_anchors": ["S1", "S4"],
+      "framework_mapping": {
+        "langgraph": "give_up_node -> interrupt({'reason': state['last_error']})",
+        "crewai": "fallback Task with human_input=True",
+        "claude_sdk": "tool that messages a human channel",
+        "openai_agents": "stop_reason='max_turns' + assistant message summarising state"
+      }
+    },
+    {
+      "id": "OP-4",
+      "name": "token-and-wall-clock-budget",
+      "trigger": "Each iteration is itself unbounded in cost (long context, web-search, code execution).",
+      "action": "In addition to iteration counter, enforce a token budget (sum of input+output tokens) and a wall-clock timeout at the outer caller. The counter handles 'how many times'; the budget handles 'how much per time'. Either limit exhausted -> escalation (OP-3).",
+      "output": "Defense in depth: no single iteration can blow the budget even if the counter has not yet expired.",
+      "evidence_anchors": ["S2", "S4"],
+      "framework_mapping": {
+        "langgraph": "track cumulative tokens in state; check in conditional edge",
+        "crewai": "Crew(max_rpm=N) + outer asyncio.wait_for",
+        "claude_sdk": "sum usage.input_tokens + usage.output_tokens across calls",
+        "openai_agents": "Run(max_completion_tokens=N, max_prompt_tokens=N)"
+      }
+    },
+    {
+      "id": "OP-5",
+      "name": "progress-witness-per-iteration",
+      "trigger": "Designing a new cyclic flow.",
+      "action": "Identify the state field that MUST change between iterations to prove progress (a new error message, a refined plan, a different SQL query, a higher confidence score). Encode it as a typed state field. Make the conditional edge verify the witness changed; if it didn't, treat as stagnation (OP-2).",
+      "output": "Loop body that is structurally incapable of being a no-op.",
+      "evidence_anchors": ["S1", "S6"],
+      "framework_mapping": {
+        "langgraph": "state['plan_revision']: int; assert > previous",
+        "crewai": "Task.expected_output mandates a specific delta",
+        "claude_sdk": "validator function on tool output",
+        "openai_agents": "tool_choice + function schema enforces non-empty delta"
+      }
+    },
+    {
+      "id": "OP-6",
+      "name": "never-raise-the-safety-net",
+      "trigger": "User asks 'just raise recursion_limit / max_iter to make the error go away.'",
+      "action": "Refuse. Instead diagnose: (a) is there a counter? (b) is there a witness? (c) is the LM seeing the previous error so it can adapt? Patch those. The safety net stays low (LangGraph default 25, CrewAI default 20) precisely because it is a circuit breaker, not a control knob.",
+      "output": "A diagnostic conversation that ends with adding OP-1+OP-2 instead of moving the failure further away.",
+      "evidence_anchors": ["S1", "S2"],
+      "framework_mapping": {
+        "langgraph": "leave recursion_limit at default; add state counter",
+        "crewai": "leave Agent.max_iter at sane default; root-cause delegation loop",
+        "claude_sdk": "leave max_tokens at sane default; bound app-side loop",
+        "openai_agents": "leave max_turns at sane default; bound Run config"
+      }
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "title": "Text-to-SQL recursion limit",
+      "source": "github.com/langchain-ai/langgraph/issues/6731",
+      "anchor_op": "OP-1"
+    },
+    {
+      "id": "DC-2",
+      "title": "CrewAI delegation ping-pong",
+      "source": "github.com/crewAIInc/crewAI/issues/330 + azguards.com",
+      "anchor_op": "OP-6"
+    }
+  ],
+  "anti_patterns": [
+    "Raising recursion_limit / max_iter / max_turns without root-causing the loop",
+    "Letting the LM self-terminate via 'should I stop?' reflection",
+    "Bounding only by token cost — slow loops never hit it",
+    "Per-agent max_iter when delegation crosses agents (CrewAI gotcha)",
+    "Bounding without an escalation path — graph just crashes with a 500"
+  ],
+  "cross_framework_axes": [
+    "where the counter lives (state field vs config vs app code)",
+    "how the exit is expressed (conditional edge vs return vs stop_reason)",
+    "what happens when the bound is hit (interrupt vs exception vs message)"
+  ]
+}

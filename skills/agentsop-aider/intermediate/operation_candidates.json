@@ -1,0 +1,225 @@
+{
+  "project": "Aider",
+  "version": "1.0.0",
+  "extracted_at": "2026-05-19",
+  "dimensions": [
+    {
+      "id": "R1",
+      "name": "Architecture & Mental Model",
+      "operations": [
+        {
+          "operation": "treat repo as source of truth, chat as ephemeral",
+          "trigger": "session start",
+          "decision_rule": "files + git history persist; chat clears with /clear or /reset",
+          "evidence_cite": "aider.chat/docs/git.html"
+        },
+        {
+          "operation": "use tree-sitter repo-map instead of embeddings RAG",
+          "trigger": "need code-base context",
+          "decision_rule": "repo-map gives LLM symbol-level signatures + PageRank ranking; budget is dynamic (grows when no files /add-ed, shrinks when added)",
+          "evidence_cite": "aider.chat/docs/repomap.html, aider.chat/2024/05/22/swe-bench-lite.html (70.3% correct-file hit)"
+        },
+        {
+          "operation": "pick edit format by model capability, not preference",
+          "trigger": "model selected",
+          "decision_rule": "Aider has per-model defaults: GPT-4o/Sonnet=diff, Gemini=diff-fenced, GPT-4-Turbo=udiff, GPT-4.1=patch, weak models=whole",
+          "evidence_cite": "aider.chat/docs/more/edit-formats.html"
+        },
+        {
+          "operation": "never wrap code edits in JSON tool-calls",
+          "trigger": "designing agent harness around LLM code edits",
+          "decision_rule": "use plain-text diff format; JSON degrades every tested model including Sonnet",
+          "evidence_cite": "aider.chat/2024/08/14/code-in-json.html"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "SOP Workflow",
+      "operations": [
+        {
+          "operation": "bootstrap from clean git working tree",
+          "trigger": "session start",
+          "decision_rule": "cd to repo root, commit/stash in-flight work; aider will auto-commit dirty files separately if you don't",
+          "evidence_cite": "aider.chat/docs/git.html"
+        },
+        {
+          "operation": "/add only files that need editing",
+          "trigger": "scoping a task",
+          "decision_rule": "keep added files under 25k tokens; trust repo-map for everything else; /read for reference-only files",
+          "evidence_cite": "aider.chat/docs/usage/tips.html, aider.chat/docs/troubleshooting/edit-errors.html"
+        },
+        {
+          "operation": "discuss with /ask before /code",
+          "trigger": "non-trivial change",
+          "decision_rule": "use /ask to align on plan; switch to /code (or omit prefix) to execute",
+          "evidence_cite": "aider.chat/docs/usage/modes.html"
+        },
+        {
+          "operation": "use architect mode when reasoner differs from editor",
+          "trigger": "best reasoner edits poorly (e.g., o1-preview)",
+          "decision_rule": "pair architect (o1/o3) with capable editor (Sonnet, GPT-4o, DeepSeek); accept ~2x cost for ~3-6pp benchmark gain",
+          "evidence_cite": "aider.chat/2024/09/26/architect.html"
+        },
+        {
+          "operation": "wire --auto-lint and --test-cmd --auto-test",
+          "trigger": "edit-heavy session",
+          "decision_rule": "non-zero exit feeds output back to LLM which proposes fix; wrap reformatters in dual-pass script",
+          "evidence_cite": "aider.chat/docs/usage/lint-test.html"
+        },
+        {
+          "operation": "pin coding style with --read CONVENTIONS.md",
+          "trigger": "team or project has consistent style preferences",
+          "decision_rule": "load once via --read; example: 'prefer httpx over requests; use type hints'",
+          "evidence_cite": "aider.chat/docs/usage/conventions.html"
+        },
+        {
+          "operation": "monorepo: use --subtree-only + .aiderignore",
+          "trigger": "monorepo or very large repo",
+          "decision_rule": "cd into subdir, run aider with --subtree-only; exclude vendor/dist with .aiderignore",
+          "evidence_cite": "aider.chat/docs/faq.html"
+        },
+        {
+          "operation": "/clear when topic shifts; /reset for clean slate",
+          "trigger": "long session drift or new task",
+          "decision_rule": "/clear keeps files, drops chat; /reset drops both",
+          "evidence_cite": "aider.chat/docs/usage/commands.html"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "Dilemma Cases",
+      "operations": [
+        {
+          "dilemma": "model edits wrong file",
+          "trigger": "LLM proposes edits to unintended/invented file path",
+          "decision_rule": "/ls to inspect; /add target; /drop extras; /ask which file implements X if unknown",
+          "evidence_cite": "aider.chat/docs/usage/tips.html"
+        },
+        {
+          "dilemma": "context window overflow on large repo",
+          "trigger": "/tokens > 25k; truncated responses",
+          "decision_rule": "step 1 /tokens, 2 /drop, 3 /clear, 4 --map-tokens 1024 or 0, 5 --subtree-only + .aiderignore, 6 split task",
+          "evidence_cite": "aider.chat/docs/troubleshooting/token-limits.html, aider.chat/docs/troubleshooting/edit-errors.html"
+        },
+        {
+          "dilemma": "diff format hallucinates / SEARCH block not found",
+          "trigger": "Aider reports 'SEARCH block not found' repeatedly",
+          "decision_rule": "/clear; upgrade model; fallback --edit-format whole; try --architect for two-step reliability",
+          "evidence_cite": "aider.chat/docs/troubleshooting/edit-errors.html, aider.chat/2023/12/21/unified-diffs.html"
+        },
+        {
+          "dilemma": "is architect mode worth the cost",
+          "trigger": "considering whether to pay for two LLM calls per turn",
+          "decision_rule": "skip if reasoner edits cleanly; use if reasoner is lazy at editing (o1-preview 79.7%->82.7% with Sonnet); SOTA path (85%) is too slow for interactive",
+          "evidence_cite": "aider.chat/2024/09/26/architect.html"
+        },
+        {
+          "dilemma": "Sonnet truncates at 4k output tokens",
+          "trigger": "Claude 3.5 Sonnet response cuts off mid-edit",
+          "decision_rule": "Aider already handles via multi-response stitching + minimality prompts; update Aider; if persists, manually request minimal SEARCH/REPLACE blocks",
+          "evidence_cite": "aider.chat/2024/07/01/sonnet-not-lazy.html"
+        },
+        {
+          "dilemma": "JSON tool-call vs plain text diff for code",
+          "trigger": "designing agent harness; weighing structured output",
+          "decision_rule": "prefer plain-text diff; JSON degrades every tested model; if forced, single string field, expect quality hit",
+          "evidence_cite": "aider.chat/2024/08/14/code-in-json.html"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "Anti-Patterns & Boundaries",
+      "operations": [
+        {
+          "anti_pattern": "use Aider for greenfield with no existing codebase",
+          "rationale": "repo-map empty; per-edit-commit safety has no marginal value over plain LLM chat",
+          "evidence_cite": "aider.chat/docs/repomap.html"
+        },
+        {
+          "anti_pattern": "use Aider for refactors across thousands of files",
+          "rationale": "25k-token sweet spot for added files; sed/AST/IDE refactor first then Aider for semantic residual",
+          "evidence_cite": "aider.chat/docs/troubleshooting/edit-errors.html"
+        },
+        {
+          "anti_pattern": "use Aider without git",
+          "rationale": "loses per-edit commit, /undo, dirty-file separation, audit trail",
+          "evidence_cite": "aider.chat/docs/git.html"
+        },
+        {
+          "anti_pattern": "use Aider for fully autonomous ticket->PR",
+          "rationale": "Aider is human-in-loop by design; OpenHands/Devin target autonomy",
+          "evidence_cite": "aider.chat/2024/05/22/swe-bench-lite.html"
+        },
+        {
+          "mistake": "/add too many files for safety",
+          "fix": "/drop aggressively; trust repo-map (70.3% correct-file hit on SWE-Bench Lite)",
+          "evidence_cite": "aider.chat/2024/05/22/swe-bench-lite.html"
+        },
+        {
+          "mistake": "weak model as editor in architect mode",
+          "fix": "editor must follow edit format reliably; Sonnet/DeepSeek/GPT-4o are good editors",
+          "evidence_cite": "aider.chat/2024/09/26/architect.html"
+        },
+        {
+          "mistake": "skip /clear between tasks",
+          "fix": "/clear when topic shifts; long history drifts model behavior",
+          "evidence_cite": "aider.chat/docs/usage/tips.html"
+        },
+        {
+          "mistake": "disable auto-commit to keep history clean",
+          "fix": "leave auto-commit on; squash with git rebase -i HEAD~N at end",
+          "evidence_cite": "aider.chat/docs/git.html"
+        },
+        {
+          "mistake": "skip CONVENTIONS.md",
+          "fix": "load with --read; persists style decisions across sessions",
+          "evidence_cite": "aider.chat/docs/usage/conventions.html"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "Ecosystem Context",
+      "operations": [
+        {
+          "comparison": "Aider vs Cline",
+          "axis": "approval model",
+          "decision": "Aider = retrospective /undo; Cline = prospective per-tool-call approve",
+          "evidence_cite": "cline.bot/blog/top-9-cursor-alternatives-in-2025"
+        },
+        {
+          "comparison": "Aider vs Cursor",
+          "axis": "surface",
+          "decision": "Aider = terminal pure + open-source; Cursor = closed IDE + visual diff overlays",
+          "evidence_cite": "shakudo.io/blog/best-ai-coding-assistants"
+        },
+        {
+          "comparison": "Aider vs Continue",
+          "axis": "IDE breadth",
+          "decision": "Continue = cross-IDE (VS Code + JetBrains); Aider = terminal-only",
+          "evidence_cite": "frontman.sh/blog/best-open-source-ai-coding-tools-2026"
+        },
+        {
+          "comparison": "Aider vs OpenHands",
+          "axis": "autonomy",
+          "decision": "Aider = human-in-loop REPL; OpenHands = autonomous sandbox ticket->PR",
+          "evidence_cite": "frontman.sh/blog/best-open-source-ai-coding-tools-2026"
+        },
+        {
+          "research_legacy": "Aider's published experiments inform any coding-agent designer",
+          "items": [
+            "udiff vs SEARCH/REPLACE: 20% -> 61% on GPT-4 Turbo refactor benchmark",
+            "tree-sitter repo-map: 70.3% correct-file hit on SWE-Bench Lite",
+            "architect+editor split: 79.7% -> 85% Polyglot pass@2",
+            "JSON tool-call wrapping degrades every tested model for code editing",
+            "Sonnet 4k-output workaround: 55.1% -> 64.0% refactor benchmark"
+          ],
+          "evidence_cite": "aider.chat/blog series 2023-2024"
+        }
+      ]
+    }
+  ]
+}

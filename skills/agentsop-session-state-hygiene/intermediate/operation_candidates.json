@@ -1,0 +1,130 @@
+{
+  "skill": "session-state-hygiene",
+  "version": "0.1.0",
+  "research_date": "2026-05-19",
+  "axiom": "Context is signal; stale context is noise. The longer a session runs, the more likely yesterday's good context is today's bad bias.",
+  "operations": [
+    {
+      "id": "op-001",
+      "category": "detect",
+      "framework": "universal",
+      "trigger": "Any of: (a) topic shift inside the session, (b) framework warning that context window is N% full, (c) model repeats earlier mistakes after you said 'don't', (d) model references a file/decision you already removed, (e) model contradicts an explicit instruction in the LAST message but obeys an OLDER one.",
+      "action": "Stop. Do not edit the prompt, do not retry, do not swap model. Name the symptom out loud (one line: 'model is still using <stale fact>'). Then choose op-002 (save+clear), op-003 (fresh thread), or op-004 (partial clear).",
+      "output": "Symptom named. Hygiene action chosen. The trap avoided: 'just rephrasing' a prompt against a polluted history.",
+      "limitations": "Detection is heuristic; you will sometimes clear when you didn't need to. Acceptable cost vs. the cost of running a long session on stale context.",
+      "evidence": ["aider.chat/docs/troubleshooting/edit-errors.html (above ~25k tokens models become distracted)", "docs.anthropic.com/en/docs/claude-code/slash-commands (/clear resets conversation history)", "langchain-ai.github.io/langgraph/concepts/persistence/ (thread_id scopes state)"]
+    },
+    {
+      "id": "op-002",
+      "category": "save-and-clear",
+      "framework": "universal",
+      "trigger": "You want to keep working on the same topic but the chat history is polluted (failed attempts, dead ends, intermediate scratchwork).",
+      "action": "(1) Have the model produce a single-paragraph summary of decisions made + state of the world (files touched, tests passing, open questions). (2) Copy that summary to a scratch file or clipboard. (3) Issue the framework's clear command (Aider /clear, Claude Code /clear, ChatGPT 'New chat', CrewAI re-instantiate Crew with memory=False, LangGraph new thread_id). (4) Paste the summary back as the first message of the new session.",
+      "output": "Fresh history with only the distilled state. Files/working tree untouched (for code tools). Cost ~30 seconds + one LM call for the summary.",
+      "limitations": "The summary is lossy. If the bug you're hunting depends on a specific phrase the model said three turns ago, save the raw transcript instead.",
+      "evidence": ["aider.chat/docs/usage/commands.html (/clear preserves /add'd files)", "Aider SOP §6 'Context hygiene' table line 'topic switch → /clear'"]
+    },
+    {
+      "id": "op-003",
+      "category": "fresh-thread",
+      "framework": "universal",
+      "trigger": "Topic has fully changed (new feature, new bug, new task) AND nothing from the old session is needed.",
+      "action": "Start a genuinely new session. Aider: exit and re-launch (or /reset). Claude Code: /clear (or exit). ChatGPT/Gemini: New chat button. CrewAI: new Crew() instance, do NOT reuse the previous one even with memory=False (agent.tools_results may persist). LangGraph: new thread_id in the config (do not reuse the old uuid).",
+      "output": "Zero context bleed. Maximum signal-to-noise on the new task. Cheapest possible context window.",
+      "limitations": "You lose access to past decisions. If the next task is even loosely related, op-002 is usually better.",
+      "evidence": ["docs.crewai.com/en/concepts/memory (memory must be explicitly enabled to persist across kickoffs)", "langchain-ai.github.io/langgraph/concepts/persistence/ (a different thread_id = a different conversation)"]
+    },
+    {
+      "id": "op-004",
+      "category": "partial-clear",
+      "framework": "universal",
+      "trigger": "History is mostly good but a specific subset is polluting (e.g., one big paste of wrong code, a 5k-token failed search result, a tool output you no longer need).",
+      "action": "Aider: /drop <file> to remove a file from the working set without clearing chat; /tokens to confirm reduction. Claude Code: /context to inspect, then /clear sub-sections if available (else fall back to op-002). LangGraph: graph.update_state(config, {'messages': trimmed_list}) — overwrite the messages key with a filtered slice. CrewAI: re-create the offending agent only (not the whole Crew) so its short-term memory resets.",
+      "output": "Bad context excised; good context preserved. Lower-cost alternative to a full clear.",
+      "limitations": "Only some frameworks support fine-grained edits (LangGraph is best; Aider is file-level only; ChatGPT/Gemini are all-or-nothing).",
+      "evidence": ["aider.chat/docs/usage/commands.html (/drop, /tokens)", "langchain-ai.github.io/langgraph/how-tos/manage-conversation-history/ (update_state on messages)"]
+    },
+    {
+      "id": "op-005",
+      "category": "framework_specific",
+      "framework": "aider",
+      "trigger": "Aider session: token count over 25k OR topic switch OR repeated 'SEARCH block not found' errors.",
+      "action": "/tokens to confirm bloat. /drop <files> to shed unused files. /clear to wipe chat history (keeps /add'd files). /reset to wipe both files and history. /map to verify repo-map size.",
+      "output": "Token budget back under 25k; model edit-accuracy restored.",
+      "limitations": "/clear keeps the file list — if files themselves are the problem, use /reset.",
+      "evidence": ["aider.chat/docs/troubleshooting/edit-errors.html ('Above about 25k tokens, most models become distracted')", "aider.chat/docs/usage/commands.html (/clear, /reset, /drop, /tokens)"]
+    },
+    {
+      "id": "op-006",
+      "category": "framework_specific",
+      "framework": "claude-code",
+      "trigger": "Claude Code session: topic shift, context-window warning, or starting an unrelated task in the same terminal.",
+      "action": "/clear to reset the conversation history (preserves working directory and project files). /context to inspect what's currently loaded. Exit the CLI entirely for a hard reset (loses anything not committed to disk).",
+      "output": "Fresh conversation, same project state on disk.",
+      "limitations": "/clear is irreversible — once cleared, the model cannot recall earlier turns. Save anything important first (op-002).",
+      "evidence": ["docs.anthropic.com/en/docs/claude-code/slash-commands (/clear)"]
+    },
+    {
+      "id": "op-007",
+      "category": "framework_specific",
+      "framework": "crewai",
+      "trigger": "Debugging a CrewAI crew where outputs look biased by a previous kickoff, OR you're not sure if memory is on, OR traces are unreadable.",
+      "action": "Set memory=False on the Crew during debug. Re-instantiate the Crew object between runs (do not reuse). For per-agent state, instantiate a fresh Agent. If memory=True is required in prod, clear the memory store: rm -rf <storage_dir> (default LanceDB lives under ~/.crewai/) before re-running.",
+      "output": "Deterministic, low-noise traces. Easier to attribute bad outputs to prompt vs. memory recall.",
+      "limitations": "Disabling memory loses cross-kickoff context — only do this in debug, not prod (if prod actually needs it).",
+      "evidence": ["docs.crewai.com/en/concepts/memory (memory is opt-in; short_term + entity run extra LLM calls when enabled)", "crewai SOP DC-4 ('调试期一律 memory=False')"]
+    },
+    {
+      "id": "op-008",
+      "category": "framework_specific",
+      "framework": "langgraph",
+      "trigger": "LangGraph thread is producing wrong outputs and the message history is suspect, OR you want to fork a clean run.",
+      "action": "Pick one: (a) New thread_id — config={'configurable': {'thread_id': str(uuid4())}} — and re-invoke from scratch. (b) graph.update_state(config, {'messages': [...]}) to surgically rewrite the message list. (c) For subgraphs that should not share state: define a separate state schema and translate at the boundary.",
+      "output": "Either a clean thread (a), surgically cleaned state (b), or isolated subgraph state (c).",
+      "limitations": "(a) is the safest but loses checkpoint history of that thread. (b) requires you to know exactly which keys to trim.",
+      "evidence": ["langchain-ai.github.io/langgraph/concepts/persistence/", "langchain-ai.github.io/langgraph/how-tos/manage-conversation-history/", "langchain-ai.github.io/langgraph/concepts/subgraphs/"]
+    },
+    {
+      "id": "op-009",
+      "category": "framework_specific",
+      "framework": "chatgpt-gemini-claude-web",
+      "trigger": "Web UI chat: long thread, model is mixing topics, projects/custom-instructions are interfering.",
+      "action": "Click 'New chat' for a hard reset. To preserve carry-over: ask the model to 'summarize what we decided and the final state' first, copy that paragraph, paste into the new chat as your opening message.",
+      "output": "Fresh window, distilled carry-over. No project state to manage (web UIs have no files).",
+      "limitations": "Web UIs typically cannot do partial clears. It's all-or-nothing.",
+      "evidence": ["help.openai.com (ChatGPT memory and chat management)"]
+    }
+  ],
+  "anti_patterns": [
+    {
+      "id": "ap-001",
+      "name": "Never-clear marathon session",
+      "symptom": "Hours-long session, model increasingly 'forgets' instructions or invents files that were dropped 50 turns ago.",
+      "fix": "On any topic shift OR every ~25k tokens, op-002 (save+clear). Treat /clear as a stop-the-line tool, not a panic button."
+    },
+    {
+      "id": "ap-002",
+      "name": "Reflexive clear-every-message",
+      "symptom": "Clearing so often the model loses useful continuity (forgets which files are in scope, re-asks questions you just answered).",
+      "fix": "Only clear on explicit triggers (op-001). 'Things feel off' is not a trigger; name the symptom first."
+    },
+    {
+      "id": "ap-003",
+      "name": "Dumping the whole old transcript into the fresh session",
+      "symptom": "You /clear, then paste a 50-message log back in. You've recreated the polluted context with extra steps.",
+      "fix": "Paste a *summary* (op-002), not raw history. If you genuinely need raw history, you didn't need to clear."
+    },
+    {
+      "id": "ap-004",
+      "name": "Clearing instead of fixing the underlying issue",
+      "symptom": "You /clear after every failed edit. The bug is in the prompt or the model, not the history.",
+      "fix": "Before clearing, run prompt-history-inspect skill. If the bug repeats after a clear, /clear is not the fix."
+    },
+    {
+      "id": "ap-005",
+      "name": "Forgetting memory is on (CrewAI / persistent backends)",
+      "symptom": "You 'cleared' the session but the agent still recalls a fact. Memory subsystem still holds it.",
+      "fix": "Disable memory in debug (op-007). Or wipe the memory store explicitly."
+    }
+  ]
+}

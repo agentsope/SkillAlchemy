@@ -1,0 +1,113 @@
+{
+  "skill": "signature-design",
+  "version": "0.1.0",
+  "capture_date": "2026-05-20",
+  "layer": "enhance-overlay",
+  "decision_layer_only": true,
+  "defers_implementation_to": ["dspy", "dspy-sop"],
+  "primary_source": "/Users/5imp1ex/Desktop/Skill-Workplace/output/dspy-sop-skill/SKILL.md",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Gate: decide promote vs keep-prose",
+      "trigger": "A prose prompt crosses a load-bearing threshold: > ~50 lines, OR its output is consumed by code, OR it is reused across > 1 call site",
+      "action": "Run the promote-trigger checklist (LENGTH / CONSUMED / REUSED, + bonus signals). Zero boxes -> keep prose. One+ box -> promote.",
+      "output": "Decision token: `promote` | `keep-prose`",
+      "evidence": ["dspy-sop S1: prompts past ~50 lines are a symptom", "dspy-sop S7: do not promote while signature unstable"],
+      "tags": ["entry-gate", "decision"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Extract inputs and outputs into named slots",
+      "trigger": "OP-1 returned `promote`",
+      "action": "Read the prose prompt; list every variable the LM is given (inputs) and every distinct value it must return (outputs). Split fused outputs (e.g. 'category and reason' = two fields).",
+      "output": "Flat list of typed I/O slots",
+      "evidence": ["dspy-sop S2: field names carry intent; one concept per field"],
+      "tags": ["shaping", "core"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Name fields semantically",
+      "trigger": "Slots extracted (OP-2)",
+      "action": "Rename each slot to read like a function parameter (`text`->`ticket`, `out`->`category`). Avoid generic input/output. The name is the optimizer's only pre-data intent signal.",
+      "output": "Field names that self-describe intent",
+      "evidence": ["dspy-sop S2: name like function parameters in well-written code"],
+      "tags": ["shaping", "core", "naming"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Add descriptions only where the name underspecifies",
+      "trigger": "Field names set (OP-3)",
+      "action": "Add InputField(desc=) / OutputField(desc=) ONLY for fields whose name is ambiguous or that need a constraint (format/length/units/allowed values). Leave obvious fields bare.",
+      "output": "Minimal, justified descriptions",
+      "evidence": ["dspy-sop S3: cheatsheet leaves `question` bare, adds desc only on `answer`"],
+      "tags": ["shaping", "naming"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Type closed-set / boolean / numeric outputs",
+      "trigger": "An output field has a fixed value set, a boolean meaning, or a numeric range",
+      "action": "Type the OutputField (`Literal[...]`, `bool`, `int`, `float`) instead of `str`, so the type is both documentation and a parse guard, and downstream code stops scraping prose.",
+      "output": "Typed OutputField; downstream parsing removed",
+      "evidence": ["dspy-sop S3: upgrade to class-based Signature when types matter", "dspy-sop S5: signature shape is your code's job"],
+      "tags": ["shaping", "typing"]
+    },
+    {
+      "id": "OP-6",
+      "name": "Defer module choice to [[dspy]]",
+      "trigger": "Signature shaped; quality may benefit from reasoning",
+      "action": "Note any module hint (e.g. 'reasoning helps -> likely ChainOfThought') but DO NOT decide here. Hand the shaped Signature to the [[dspy]] skill for module selection / evaluation / compile.",
+      "output": "Hand-off note + context switch to [[dspy]]",
+      "evidence": ["dspy-sop S4: module-selection table belongs to the dspy library/workflow"],
+      "tags": ["boundary", "hand-off"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Re-audit Signature when optimizer plateaus",
+      "trigger": "Later, in [[dspy]], compilation gains flatten",
+      "action": "Before blaming the optimizer, loop back: are inputs/outputs truly separated? Do field names carry intent? Ambiguous Signature is the common root cause.",
+      "output": "Revised Signature (re-run OP-2..OP-5)",
+      "evidence": ["dspy-sop S8: plateau usually means program/signature ambiguity, not optimizer"],
+      "tags": ["iterate-back", "decision"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Pair Signature with a grammar enforcer when machine-validity is mandatory",
+      "trigger": "Output is consumed by code AND must be syntactically valid (strict JSON/grammar)",
+      "action": "Keep the Signature for intent shaping + optimization, but add a token-level enforcer (Outlines/Guidance) for the hard syntax guarantee. A typed OutputField pushes toward structure but does not guarantee grammar.",
+      "output": "Signature + enforcement layer",
+      "evidence": ["dspy-sop S9: typed OutputField does not guarantee grammar conformance; use Outlines for that"],
+      "tags": ["composition", "boundary"]
+    }
+  ],
+  "field_naming_rules": [
+    "Name like a function parameter, not like a prompt sentence.",
+    "Inputs are nouns the LM receives; outputs are nouns it produces; do not mix.",
+    "One concept per field; split fused outputs.",
+    "Use the most specific type the value can hold (Literal/bool/int over str).",
+    "Reserve desc= for what the name cannot say: format, length, units, allowed values, edge cases."
+  ],
+  "dilemma_cases": [
+    {
+      "id": "Case-A",
+      "title": "80-line mega-prompt: promote whole vs split first",
+      "decision": "Promote, but keep only the I/O shape in code; let instruction/demo prose become optimizer-owned; split fused outputs; type closed-set/boolean outputs.",
+      "extractable_op": "OP-2, OP-5, mental-model #2"
+    },
+    {
+      "id": "Case-B",
+      "title": "One-shot disposable prompt someone wants to 'make robust'",
+      "decision": "CONSUMED justifies a minimal TYPED Signature (parse safety) but NOT optimization. Separate 'promote to typed contract' from 'compile/optimize'.",
+      "extractable_op": "OP-5 yes, refuse compile (S10), boundary S7"
+    }
+  ],
+  "anti_patterns": [
+    "Over-signaturizing one-off prompts (no trigger fired).",
+    "Under-specifying field semantics (generic input/output names).",
+    "One blob output that should be N typed fields.",
+    "Copying whole prose prompt into the docstring (that text is the optimizer's).",
+    "Promoting before the I/O contract stabilizes.",
+    "Reflexively adding desc= to every field.",
+    "Confusing 'promote to Signature' with 'guarantee valid JSON'."
+  ]
+}

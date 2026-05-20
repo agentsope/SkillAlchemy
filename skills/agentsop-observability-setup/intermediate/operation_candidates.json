@@ -1,0 +1,119 @@
+{
+  "skill": "observability-setup",
+  "version": "0.1.0",
+  "type": "enhancement-overlay",
+  "research_date": "2026-05-20",
+  "axiom": "Instrument before you need it. The cheapest debugging session is a trace you already have.",
+  "gap_filled": "Local langsmith/phoenix/mlflow skills each cover ONE backend; none helps the coder DECIDE which backend fits stack/scale/budget, nor wire a one-line autolog before first deploy.",
+  "cross_links": ["langsmith", "phoenix", "mlflow", "prompt-history-inspect"],
+  "sop_stages": [
+    "pick backend by stack/scale/budget",
+    "one-line autolog",
+    "verify a trace landed",
+    "add eval hooks",
+    "hand off to backend skill"
+  ],
+  "operations": [
+    {
+      "id": "op-001",
+      "category": "decision",
+      "name": "Backend decision table",
+      "trigger": "LM project with no observability backend chosen yet (Stage 1)",
+      "action": "Match dominant constraint (stack / scale / hosting) to a backend row; first match wins",
+      "output": "Exactly one backend + its handoff skill",
+      "decision_rows": [
+        {"if": "stack is LangChain/LangGraph/LlamaIndex, managed SaaS OK", "choose": "LangSmith", "skill": "langsmith", "why": "first-class native integration, same team builds both", "caveat": "vendor lock-in; volume pricing"},
+        {"if": "OSS-only / local-first / want OpenTelemetry / no lock-in", "choose": "Phoenix", "skill": "phoenix", "why": "OTel-based, self-host SQLite/Postgres, framework-agnostic", "caveat": "you run the infra; Arize Cloud if outgrown"},
+        {"if": "ML-shop already on MLflow (registry + experiments)", "choose": "MLflow", "skill": "mlflow", "why": "LLM traces alongside existing runs/registry, autolog per framework", "caveat": "LLM-trace UI younger than purpose-built tools"},
+        {"if": "must self-host purpose-built LLM observability (privacy/residency)", "choose": "Langfuse", "skill": null, "why": "self-hostable LLM-native traces+evals, DSPy/CrewAI bolt-on", "caveat": "no local skill; install per docs; OTel-compatible"},
+        {"if": "mixed stack / framework churn / want portability", "choose": "OpenTelemetry GenAI", "skill": null, "why": "standard span schema, swap backends without re-instrumenting", "caveat": "still need a concrete viewer; Phoenix is OTel-native"}
+      ],
+      "evidence": ["langgraph-sop AP-15", "llamaindex-sop L406", "dspy-sop L99/L263", "langsmith/phoenix/mlflow frontmatter"]
+    },
+    {
+      "id": "op-002",
+      "category": "wiring",
+      "name": "One-line autolog per backend",
+      "trigger": "Backend chosen, turn it on (Stage 2)",
+      "action": {
+        "langsmith": "export LANGSMITH_TRACING=true; LANGSMITH_API_KEY=...; LANGSMITH_PROJECT=my-app (raw SDK: wrap_openai / @traceable)",
+        "phoenix": "import phoenix as px; px.launch_app(); from phoenix.otel import register; register(auto_instrument=True)",
+        "mlflow": "import mlflow; mlflow.set_tracking_uri('http://localhost:5000'); mlflow.dspy.autolog()  # or langchain/openai/crewai"
+      },
+      "output": "Traces flow on next LM call, no hand-written per-call instrumentation",
+      "evidence": ["langsmith/phoenix/mlflow quick-start", "dspy-sop mlflow.dspy.log_model", "prompt-history-inspect op-001"]
+    },
+    {
+      "id": "op-003",
+      "category": "verify",
+      "name": "Verify a trace actually landed",
+      "trigger": "Autolog wired, before trusting it (Stage 3)",
+      "action": "Run one real call; open UI; confirm inputs+outputs+latency+token count appear. If empty: check project name, env var exported in this process, sampling != 0",
+      "output": "One verified trace = backend real not just configured",
+      "evidence": ["configured-but-empty is #1 silent failure", "references/R2"]
+    },
+    {
+      "id": "op-004",
+      "category": "eval",
+      "name": "Add eval hooks on raw traces",
+      "trigger": "Traces flow; make them actionable (Stage 4)",
+      "action": "Attach evaluator (LLM-as-judge / dataset evaluators / logged metrics) + dataset built from real traces + cost/latency alerts; defer deep API to backend skill",
+      "output": "Traces become regression-catching system, not just a log",
+      "evidence": ["langsmith/phoenix evaluation sections", "llamaindex-sop L126 eval loop", "dspy-sop metric pattern"]
+    },
+    {
+      "id": "op-005",
+      "category": "payload",
+      "name": "What to trace (minimum payload)",
+      "trigger": "Deciding what each span captures",
+      "action": "Per LM call capture: rendered prompt, response, model id, latency, token in/out, upstream context (RAG: query+retrieved_nodes+scores+index_id; agents: tool+args+observation)",
+      "output": "Span that answers 'why did it do that' without a re-run",
+      "evidence": ["llamaindex-sop L159", "prompt-history-inspect what-to-dump"]
+    },
+    {
+      "id": "op-006",
+      "category": "handoff",
+      "name": "Handoff to backend skill",
+      "trigger": "Backend wired+verified; need depth",
+      "action": "Stop; invoke chosen backend's own skill (langsmith/phoenix/mlflow). Overlay does not duplicate their APIs",
+      "output": "Clean separation: decision/wiring here, depth there",
+      "evidence": ["overlay design boundary"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "case-A",
+      "name": "Vendor lock-in: LangSmith vs OSS Phoenix",
+      "tension": "speed-to-trace + native integration (LangSmith) vs no lock-in + data control (Phoenix)",
+      "resolution": "LangChain/LangGraph-first + SaaS-OK -> LangSmith now; data-must-stay-in-house or OSS stack -> Phoenix + accept self-host. Wrong move = ship with neither (AP-15). OTel keeps migration possible.",
+      "evidence": ["langgraph-sop AP-15", "phoenix frontmatter 'without vendor lock-in'"]
+    },
+    {
+      "id": "case-B",
+      "name": "Trace volume at scale (Replit problem)",
+      "tension": "full observability vs cost & signal-to-noise at production volume; per-trace SaaS pricing scales with users",
+      "resolution": "Not binary trace-all/none: (1) sample full-fidelity on errors + small % success; (2) move to self-host (Phoenix/Langfuse) past break-even; (3) curate eval datasets from sampled traces. Decide policy before the bill/noise forces a panic migration.",
+      "evidence": ["high-volume agent-product pattern", "standard sampling practice"]
+    }
+  ],
+  "anti_patterns": [
+    "AP-15: no observability in production (ship with no trace UI) — headline trap",
+    "Over-instrumenting: two backends, span-per-function, custom layer before trying autolog",
+    "Configured-but-empty: declare victory without verifying a trace landed (OP-3)",
+    "Tracing prompt but not response/context (truncation/refusal/bad-retrieval live there)",
+    "Full-fidelity tracing on at scale with no cost/sampling plan (Case B)"
+  ],
+  "boundaries": [
+    "Backend already chosen -> use langsmith/phoenix/mlflow directly",
+    "Need one prompt right now, no setup -> prompt-history-inspect",
+    "Pure ML experiment tracking, no LLM calls -> plain MLflow, no decision needed",
+    "Pre-call infra failure (auth/network/import) -> fix infra, nothing to trace yet"
+  ],
+  "cross_backend_table": {
+    "LangSmith": {"hosting": "managed SaaS", "stack_fit": "LangChain/LangGraph/LlamaIndex first-class", "turn_on": "export LANGSMITH_TRACING=true", "lock_in": "high", "skill": "langsmith"},
+    "Phoenix": {"hosting": "self-host SQLite/Postgres or Arize Cloud", "stack_fit": "OSS / any via OTel", "turn_on": "px.launch_app() + register(auto_instrument=True)", "lock_in": "low", "skill": "phoenix"},
+    "MLflow": {"hosting": "self-host / Databricks", "stack_fit": "ML-shops, framework-agnostic, registry+runs", "turn_on": "mlflow.<framework>.autolog()", "lock_in": "low", "skill": "mlflow"},
+    "Langfuse": {"hosting": "self-host LLM-native or cloud", "stack_fit": "DSPy/CrewAI bolt-on, privacy/residency", "turn_on": "Langfuse() + framework callback", "lock_in": "low", "skill": null},
+    "OpenTelemetry-GenAI": {"hosting": "backend-agnostic", "stack_fit": "portability layer under the above", "turn_on": "instrument with OTel GenAI conventions, export to chosen backend", "lock_in": "none", "skill": null}
+  }
+}

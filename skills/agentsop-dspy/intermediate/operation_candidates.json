@@ -1,0 +1,254 @@
+{
+  "skill": "dspy-sop",
+  "version": "0.1.0",
+  "research_date": "2026-05-19",
+  "operations": [
+    {
+      "id": "op-001",
+      "category": "optimizer_selection",
+      "trigger": "User has <= 10 labeled examples and a metric",
+      "action": "Apply dspy.teleprompt.BootstrapFewShot(metric=m, max_bootstrapped_demos=4, max_rounds=1)",
+      "output": "Compiled program with self-bootstrapped demonstrations",
+      "evidence": ["dspy.ai/learn/optimization/optimizers/"]
+    },
+    {
+      "id": "op-002",
+      "category": "optimizer_selection",
+      "trigger": "User has 30-50 labeled examples",
+      "action": "Apply BootstrapFewShotWithRandomSearch for best-of-N candidate search",
+      "output": "Best candidate program over multiple bootstrap rounds",
+      "evidence": ["dspy.ai/learn/optimization/optimizers/"]
+    },
+    {
+      "id": "op-003",
+      "category": "optimizer_selection",
+      "trigger": "User has 200+ labeled examples and compute budget",
+      "action": "Apply MIPROv2(metric=m, auto='light'); escalate to medium only if light gives >5% lift",
+      "output": "Jointly-optimized instructions + few-shot demos via Bayesian optimization",
+      "evidence": ["dspy.ai/api/optimizers/MIPROv2/", "github.com/stanfordnlp/dspy/issues/1596"]
+    },
+    {
+      "id": "op-004",
+      "category": "optimizer_selection",
+      "trigger": "User can express textual error feedback (test diffs, schema violations, judge rationales)",
+      "action": "Apply dspy.GEPA with a metric that returns dspy.Prediction(score=..., feedback=...)",
+      "output": "Reflection-evolved prompts; sample-efficient (10 examples + 20-100 evals can yield improvement)",
+      "evidence": ["dspy.ai/tutorials/gepa_ai_program/", "arxiv.org/abs/2507.19457", "dspy.ai/api/optimizers/GEPA/overview/"]
+    },
+    {
+      "id": "op-005",
+      "category": "optimizer_selection",
+      "trigger": "Need zero-shot prompts in production output (no demos)",
+      "action": "MIPROv2 with max_bootstrapped_demos=0, max_labeled_demos=0",
+      "output": "Instruction-only optimization; final prompt has no few-shot examples",
+      "evidence": ["dspy.ai/learn/optimization/optimizers/"]
+    },
+    {
+      "id": "op-006",
+      "category": "model_swap",
+      "trigger": "User switches LM family (e.g. GPT-4o -> Llama-3-8B)",
+      "action": "Re-compile the program with the new LM configured; do not migrate the old program.json",
+      "output": "New compiled artifact (program.llama8b.json) tuned for the smaller model's quirks",
+      "evidence": ["ganeshkedari.substack.com/p/stop-writing-prompts-a-guide-to-dspy", "acldigital.com/blogs/death-to-prompting-long-live-programming"]
+    },
+    {
+      "id": "op-007",
+      "category": "cost_distillation",
+      "trigger": "Have a compiled program on a strong model; need cheaper production inference",
+      "action": "Chain MIPROv2 -> BootstrapFinetune(student=small_lm, teacher=optimized)",
+      "output": "Finetuned weights on a 1B-7B student model retaining most of the teacher's quality",
+      "evidence": ["dspy.ai/api/optimizers/BootstrapFinetune/"]
+    },
+    {
+      "id": "op-008",
+      "category": "metric_design",
+      "trigger": "Open-ended generation task with no exact-match metric",
+      "action": "Decompose into sub-judges (factual? on-topic? concise? non-hedging?) + explicit length penalty; return bool when trace is not None, float otherwise",
+      "output": "Robust multi-criteria metric suitable for compilation",
+      "evidence": ["dspy.ai/learn/evaluation/metrics/", "arxiv.org/pdf/2506.02592", "arxiv.org/pdf/2509.26072"]
+    },
+    {
+      "id": "op-009",
+      "category": "cost_control",
+      "trigger": "Budget-constrained compile",
+      "action": "Use cheap optimizer LM (gpt-4o-mini) as prompt_model even when task_model is expensive (gpt-4o)",
+      "output": "Comparable optimization quality at fraction of cost",
+      "evidence": ["github.com/stanfordnlp/dspy/issues/1596"]
+    },
+    {
+      "id": "op-010",
+      "category": "cost_control",
+      "trigger": "Before any MIPROv2 run",
+      "action": "Always start with auto='light' (~$2). Never start at 'heavy'.",
+      "output": "Cheap signal on whether the optimizer is the bottleneck",
+      "evidence": ["dspy.ai/faqs/", "github.com/stanfordnlp/dspy/issues/1596"]
+    },
+    {
+      "id": "op-011",
+      "category": "data_split",
+      "trigger": "Setting up train/val for any prompt-based optimizer (not GEPA)",
+      "action": "Use unusual 20% train / 80% val split to prevent overfit",
+      "output": "Stable validation signal",
+      "evidence": ["dspy.ai/learn/optimization/overview/"]
+    },
+    {
+      "id": "op-012",
+      "category": "data_split",
+      "trigger": "Setting up train/val for GEPA",
+      "action": "Use standard ML split (maximize train; val just large enough to match test distribution)",
+      "output": "GEPA-appropriate data partition",
+      "evidence": ["dspy.ai/learn/optimization/overview/"]
+    },
+    {
+      "id": "op-013",
+      "category": "module_selection",
+      "trigger": "New DSPy program",
+      "action": "Default module choice = dspy.ChainOfThought(Sig)",
+      "output": "Baseline with built-in step-by-step reasoning field",
+      "evidence": ["dspy.ai/learn/programming/modules/"]
+    },
+    {
+      "id": "op-014",
+      "category": "module_selection",
+      "trigger": "Task requires external tools (search, calculator, API)",
+      "action": "Use dspy.ReAct(Sig, tools=[...])",
+      "output": "Tool-using LM loop",
+      "evidence": ["dspy.ai/learn/programming/modules/", "dspy.ai/api/modules/ReAct/"]
+    },
+    {
+      "id": "op-015",
+      "category": "module_selection",
+      "trigger": "Math, parsing, deterministic computation needed",
+      "action": "Use dspy.ProgramOfThought(Sig) - LM emits code, code is executed",
+      "output": "Code-grounded final answer",
+      "evidence": ["dspy.ai/learn/programming/modules/"]
+    },
+    {
+      "id": "op-016",
+      "category": "deployment",
+      "trigger": "Ship a compiled DSPy program to production",
+      "action": "Use compiled.save('./v1/', save_program=True) for whole-program save (includes dep versions); deploy via FastAPI(dspy.asyncify(program)) or mlflow.dspy.log_model(program, task='llm/v1/chat')",
+      "output": "Versioned, reproducible deployment artifact",
+      "evidence": ["dspy.ai/tutorials/saving/", "dspy.ai/tutorials/deployment/"]
+    },
+    {
+      "id": "op-017",
+      "category": "deployment",
+      "trigger": "Serverless / AWS Lambda deployment",
+      "action": "Disable cache via dspy.LM(cache=False); set DSP_CACHEDIR and DSPY_CACHEDIR to /tmp",
+      "output": "Stateless-safe DSPy program",
+      "evidence": ["dspy.ai/faqs/"]
+    },
+    {
+      "id": "op-018",
+      "category": "debugging",
+      "trigger": "Compile hangs / single trial stuck > 30 min",
+      "action": "Abort; reduce max_bootstrapped_demos and max_labeled_demos (defaults: 4); reduce minibatch_size (default 35 -> try 16); reduce num_trials",
+      "output": "Restartable, shorter compile",
+      "evidence": ["github.com/stanfordnlp/dspy/issues/1970", "dspy.ai/faqs/"]
+    },
+    {
+      "id": "op-019",
+      "category": "debugging",
+      "trigger": "Need to inspect what the compiled program is sending to the LM",
+      "action": "Call dspy.inspect_history(n=3) to see the last N LM invocations with full prompts",
+      "output": "Prompt + response transcripts for the most recent calls",
+      "evidence": ["dspy.ai/tutorials/observability/"]
+    },
+    {
+      "id": "op-020",
+      "category": "constraints",
+      "trigger": "Need to enforce hard output constraints (development time)",
+      "action": "Wrap module output with dspy.Assert(condition, msg); halts after max retries with AssertionError",
+      "output": "Self-refining pipeline with hard guarantees",
+      "evidence": ["dspy.ai/learn/programming/7-assertions/", "arxiv.org/pdf/2312.13382"]
+    },
+    {
+      "id": "op-021",
+      "category": "constraints",
+      "trigger": "Need to encourage but not enforce output constraints (evaluation time)",
+      "action": "Use dspy.Suggest(condition, msg); logs failures and continues execution",
+      "output": "Self-refining pipeline with soft constraints",
+      "evidence": ["dspy.ai/learn/programming/7-assertions/"]
+    },
+    {
+      "id": "op-022",
+      "category": "ecosystem_combine",
+      "trigger": "Have a LangGraph workflow with LLM-calling nodes",
+      "action": "Inside each node body, load and invoke a compiled DSPy program; LangGraph handles state/routing, DSPy handles prompt quality",
+      "output": "Hybrid pipeline: orchestration + compile",
+      "evidence": ["rajapatnaik.com/blog/2025/10/23/langgraph-dspy-gepa-researcher", "medium.com/@akankshasinha247"]
+    },
+    {
+      "id": "op-023",
+      "category": "ecosystem_combine",
+      "trigger": "Have a LlamaIndex retriever and a generator step",
+      "action": "Wrap the generator as dspy.Predict(context, question -> answer); compile against retrieval + answer metrics separately",
+      "output": "DSPy-optimized RAG pipeline (JetBlue pattern)",
+      "evidence": ["databricks.com/blog/optimizing-databricks-llm-pipelines-dspy"]
+    },
+    {
+      "id": "op-024",
+      "category": "anti_pattern_guard",
+      "trigger": "User wants to compile but has no metric",
+      "action": "Refuse to compile. Help them write a metric first (exact match, sub-judge decomposition, or text feedback)",
+      "output": "Either a metric or a re-routed task that doesn't need DSPy",
+      "evidence": ["dspy.ai/learn/optimization/overview/"]
+    },
+    {
+      "id": "op-025",
+      "category": "anti_pattern_guard",
+      "trigger": "User wants to start with auto='heavy'",
+      "action": "Push back; require auto='light' as a probe first",
+      "output": "Cheap signal informs whether escalation is worth it",
+      "evidence": ["github.com/stanfordnlp/dspy/issues/1596"]
+    },
+    {
+      "id": "op-026",
+      "category": "anti_pattern_guard",
+      "trigger": "Optimization plateaus across multiple optimizers",
+      "action": "Return to Stage 1 (program structure) or Stage 2 (metric design). Do NOT keep trying new optimizers.",
+      "output": "Root-cause diagnosis (signature, decomposition, or metric)",
+      "evidence": ["dspy.ai/learn/optimization/overview/"]
+    },
+    {
+      "id": "op-027",
+      "category": "signature_design",
+      "trigger": "Drafting a Signature",
+      "action": "Use semantically meaningful field names ('question' not 'input1'); promote to class-based Signature when types/desc/Literal constraints matter",
+      "output": "Optimizer-friendly signature with embedded semantics",
+      "evidence": ["dspy.ai/learn/programming/signatures/"]
+    },
+    {
+      "id": "op-028",
+      "category": "production_versioning",
+      "trigger": "Multiple LMs in production rotation",
+      "action": "Maintain one compiled artifact per (program × LM) pair; e.g. program.gpt4o.json and program.llama8b.json; A/B test",
+      "output": "Per-LM tuned deployments",
+      "evidence": ["dspy.ai/tutorials/saving/"]
+    },
+    {
+      "id": "op-029",
+      "category": "data_threshold",
+      "trigger": "Decide if optimization is feasible",
+      "action": "Floor = 30 examples (minimal value); recommended = 300; required for MIPROv2 to avoid overfit = 200",
+      "output": "Go/no-go on optimization based on dataset size",
+      "evidence": ["dspy.ai/learn/optimization/overview/"]
+    },
+    {
+      "id": "op-030",
+      "category": "metric_mode_switch",
+      "trigger": "Writing a metric that will be used for both compile and eval",
+      "action": "Inside the metric: return strict bool when trace is not None (compile mode); return float otherwise (eval mode)",
+      "output": "One metric function, two semantics",
+      "evidence": ["dspy.ai/learn/evaluation/metrics/", "dspy.ai/cheatsheet/"]
+    }
+  ],
+  "research_caveats": [
+    "Discord war stories were paraphrased from public write-ups; raw Discord transcripts were not directly fetched (private channel).",
+    "DSPy version referenced: v3.2.1 per GitHub README at research time. Minor API drift in 3.x is possible.",
+    "GEPA is recent (ICLR 2026 oral, published Jul 2025); practitioner case studies are thinner than for MIPROv2.",
+    "Cost figures ($2-$3 per typical light compile) are from official FAQ; actual costs vary with LM choice and dataset size.",
+    "One initial WebFetch to dspy.ai/ failed (socket closed); subsequent fetches succeeded — content cross-referenced from multiple sources."
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "skill": "regression-gate",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "cross_links": ["metric-design", "domain-eval-set", "llamaindex", "dspy", "cost-tiered-models"],
+  "one_sentence": "An LM change is a code change: gate every prompt/model/retriever change with a test suite of a held-out, curated eval set plus a calibrated metric plus a threshold above measured noise, wired into CI so regressions block the merge.",
+  "phase": "D-enhance",
+  "gap_id": "E2",
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "GenerateEvalCandidates",
+      "trigger": "Need a held-out eval set; no labelled fixture exists yet.",
+      "action": [
+        "Generate QA candidates from the corpus (LlamaIndex DatasetGenerator.generate_dataset_from_nodes(num=50), promptfoo synthesis, or task-specific synthesis).",
+        "Prefer a different model family than the task model to reduce self-preference leakage.",
+        "Tag the pool with generator model id + date; keep it regeneratable."
+      ],
+      "output": "A raw, unvalidated candidate pool ready for curation.",
+      "evidence": ["llamaindex: Stage 2 DatasetGenerator (line 121)", "llamaindex: OP-10 EvalLoop (line 234)", "external: eval set generation"]
+    },
+    {
+      "id": "OP-02",
+      "name": "CurateGoldenSet",
+      "trigger": "A generated candidate set exists; it has not been human-reviewed.",
+      "action": [
+        "Human reviews every item: fix wrong labels, drop ambiguous/duplicate/trivially-easy items.",
+        "Inject known production failures and adversarial/edge cases the generator missed.",
+        "Freeze as a versioned fixture (golden_vN.jsonl); changing it is a versioned event."
+      ],
+      "output": "A trusted, frozen golden eval set that the gate runs against.",
+      "evidence": ["dspy: human-validate metric on >=20 spot-checks (line 212)", "metric-design: OP-M05", "SKILL: Dilemma 1"]
+    },
+    {
+      "id": "OP-03",
+      "name": "SplitTrainDevTest",
+      "trigger": "Eval set built; about to use it for both tuning and gating.",
+      "action": [
+        "Partition into train / dev / test.",
+        "Seal test from all prompt-authoring (no demos, instructions, or tuning drawn from it).",
+        "The gate reads only test. Note DSPy's reversed 20/80 train/val is an optimizer concern, not the gate's."
+      ],
+      "output": "Three disjoint splits; a sealed test set for the gate.",
+      "evidence": ["dspy: Stage 3 held-out exit criterion (line 101)", "dspy: AP-9 20/80 split (line 254)"]
+    },
+    {
+      "id": "OP-04",
+      "name": "SetRegressionThreshold",
+      "trigger": "Have a test score; need a pass/fail policy.",
+      "action": [
+        "Commit current test score as baseline.json.",
+        "Define absolute floor X (never ship below) and/or relative no-regression delta (PR must not make it worse).",
+        "Set delta above measured run-to-run noise; optionally add per-slice floors."
+      ],
+      "output": "A versioned threshold policy the CI job enforces.",
+      "evidence": ["dspy: Stage 3 exit 'by >= task-relevant delta' (line 101)", "llamaindex: gate every change (line 124)"]
+    },
+    {
+      "id": "OP-05",
+      "name": "WireCIGate",
+      "trigger": "Eval set + metric + threshold exist; not yet enforced automatically.",
+      "action": [
+        "Add a CI job triggered by prompt/model/retriever/graph changes.",
+        "Run eval at PR config -> compute metric -> compare to baseline.json -> exit non-zero on breach.",
+        "Post the before/after table as a PR comment."
+      ],
+      "output": "Merges that regress quality are blocked; every change carries a number.",
+      "evidence": ["llamaindex: OP-10 regression-test framing (lines 233-235)", "external: llm regression testing CI, promptfoo"]
+    },
+    {
+      "id": "OP-06",
+      "name": "BumpBaselineOnIntendedWin",
+      "trigger": "A PR intentionally raises quality; gate would otherwise pin the old baseline forever.",
+      "action": [
+        "In the same reviewed PR, update baseline.json to the new test score.",
+        "Never let CI auto-bump silently (would let quality ratchet down unnoticed)."
+      ],
+      "output": "Baseline ratchets upward deliberately; future regressions caught against the new bar.",
+      "evidence": ["dspy: keep versioned per-model artifacts and A/B (line 191)"]
+    },
+    {
+      "id": "OP-07",
+      "name": "StabilizeFlakyEval",
+      "trigger": "The gate flaps — same config, different verdicts across reruns.",
+      "action": [
+        "Pin temperature=0 and seeds where supported; disable response caching in CI.",
+        "Average N runs and gate on the mean; report variance.",
+        "If variance > delta: fix the metric (harden judge via metric-design) or widen delta; never disable the gate."
+      ],
+      "output": "A stable gate whose red builds are trustworthy.",
+      "evidence": ["dspy: cache=False AP-10 (line 255)", "dspy: stable across two runs (line 91)", "metric-design: judge-bias hardening", "SKILL: Dilemma 2"]
+    },
+    {
+      "id": "OP-08",
+      "name": "SliceTheEvalSet",
+      "trigger": "Aggregate score flat but a subpopulation (lexical queries, a tenant, a topic) silently regressed.",
+      "action": [
+        "Tag eval items by slice.",
+        "Compute and gate per-slice; a win on the majority must not mask a regression on a minority slice."
+      ],
+      "output": "Slice-level regression detection; aggregate no longer hides harm.",
+      "evidence": ["llamaindex: per-query-type taxonomy (line 280)", "metric-design: triad (no single number)"]
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D1",
+      "name": "Generated eval set vs hand-curated golden set",
+      "tension": "Generation is fast and cheap but inherits the generator model's blind spots, skews easy, and misses real long-tail failures; curation is slow but trusted. Gating on raw generation gives a green build while users churn.",
+      "resolution": "Generate for coverage (candidate pool only); curate a golden subset (fix labels, drop easy/ambiguous, inject known failures); cross-family generation; size to budget (50 curated > 200 raw); version both pool and golden set.",
+      "ops": ["OP-01", "OP-02"],
+      "anti_patterns": ["AP-3"]
+    },
+    {
+      "id": "D2",
+      "name": "Threshold too strict blocks good changes",
+      "tension": "A Delta=0 no-regression gate flags within-noise drops as failures, blocking net-positive changes (e.g. cheaper model, equal quality). The team then bypasses the gate, and a bypassed gate protects nothing.",
+      "resolution": "Measure baseline run-to-run noise (sigma) first; set Delta ~ 2*sigma, not 0; average N runs to shrink the band; track cost on its own axis (cost-tiered-models); if the metric is too noisy to set a sane Delta, harden the metric in metric-design rather than widening Delta to infinity.",
+      "ops": ["OP-04", "OP-07"],
+      "anti_patterns": ["AP-5", "AP-10"]
+    }
+  ],
+  "anti_patterns": [
+    {"id": "AP-1", "name": "No eval set; ship blind", "fix": "Build a held-out gate (llamaindex A3)"},
+    {"id": "AP-2", "name": "Eval set leaks into the prompt (demos/instructions from test)", "fix": "Seal test; demos from train only (dspy AP-9)"},
+    {"id": "AP-3", "name": "Gate on a raw generated set", "fix": "Curate a golden set (OP-02, Dilemma 1)"},
+    {"id": "AP-4", "name": "Gate on an uncalibrated metric", "fix": "Calibrate via metric-design OP-M05 before gating"},
+    {"id": "AP-5", "name": "Delta=0 / threshold below measured noise", "fix": "Set Delta > 2*sigma (OP-04, OP-07, Dilemma 2)"},
+    {"id": "AP-6", "name": "Run the gate on the val/dev set used for tuning", "fix": "Gate on held-out test only (dspy line 101)"},
+    {"id": "AP-7", "name": "Caching on in CI", "fix": "cache=False (dspy AP-10)"},
+    {"id": "AP-8", "name": "Aggregate-only gate hides a regressed minority slice", "fix": "Per-slice gating (OP-08)"},
+    {"id": "AP-9", "name": "Silent baseline auto-bump (quality can ratchet down)", "fix": "Bump baseline only in a reviewed PR (OP-06)"},
+    {"id": "AP-10", "name": "Disabling the gate when it flakes", "fix": "Stabilize (OP-07), never disable"}
+  ],
+  "boundaries": [
+    {"id": "B1", "rule": "One-shot / throwaway task", "action": "No production surface to regress (dspy line 259)"},
+    {"id": "B2", "rule": "Signature/task still changing daily", "action": "Gate only after the I/O contract stabilizes (dspy line 260)"},
+    {"id": "B3", "rule": "No metric possible and none willing to be built", "action": "Route to metric-design first; this skill cannot gate without a metric"},
+    {"id": "B4", "rule": "Public-benchmark capability eval (MMLU, HumanEval)", "action": "Use lm-evaluation-harness; for domain held-out sets descend to domain-eval-set"}
+  ],
+  "cross_framework": {
+    "llamaindex": "DatasetGenerator.generate_dataset_from_nodes for the set; Faithfulness/Relevancy/RetrieverEvaluator(mrr,hit_rate) metric; gate-every-change loop; CI wiring is DIY around Evaluate",
+    "dspy": "explicit train/dev/test (reversed 20/80 for prompt optimizers, held-out test for gate); def metric(ex,pred,trace=None)->bool|float; held-out beats baseline by >= delta; cache=False; CI wiring DIY around dspy.Evaluate",
+    "promptfoo": "first-class CI: promptfoo eval exits non-zero on failed asserts; assert types equals/contains/llm-rubric/javascript; closest off-the-shelf OP-05",
+    "langsmith": "managed datasets, evaluator functions / LLM-as-judge, regression alerts and CI integration"
+  }
+}

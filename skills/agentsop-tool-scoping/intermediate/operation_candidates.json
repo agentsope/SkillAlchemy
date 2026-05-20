@@ -1,0 +1,108 @@
+{
+  "skill": "tool-scoping",
+  "version": "0.1.0",
+  "overlay_type": "enhancement",
+  "enhances": ["crewai", "langchain", "langgraph"],
+  "task_id": "T1",
+  "task_title": "Tool definition + per-agent binding (scoping discipline)",
+  "core_mental_model": "A tool is a capability grant; scope by least-privilege. Tool definition (reuse) and tool binding (per-agent, minimal) are separate decisions.",
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "Least-privilege role->tool mapping",
+      "trigger": "Assembling a multi-agent crew/graph from a shared tool pool",
+      "action": "Start each agent at tools=[]; add a tool only when the role requires that agent to exercise it; reuse definition, bind per-role",
+      "output": "Minimal per-agent tools list + binding matrix",
+      "evidence": ["crewai-sop:DC-3", "langgraph-sop:Step4"],
+      "selected": true
+    },
+    {
+      "id": "OP-2",
+      "name": "Side-effect tool guarding",
+      "trigger": "A tool performs a write or destructive operation",
+      "action": "Bind to one agent only; add HITL/approval guard before the effect; make op idempotent",
+      "output": "Single-owner, guarded, idempotent side-effectful tool",
+      "evidence": ["langgraph-sop:Step5", "langgraph-sop:Case4"],
+      "crosslinks": ["llm-tool-idempotency", "http-tool-wrapping"],
+      "selected": true
+    },
+    {
+      "id": "OP-3",
+      "name": "Shared-registry vs per-agent binding decision",
+      "trigger": "A tool registry plus N agents; must decide wiring",
+      "action": "Share at definition layer; decide binding per-agent via OP-1; never registry.all() on every agent",
+      "output": "One definition source, N minimal per-agent bindings",
+      "evidence": ["crewai-sop:DC-3"],
+      "selected": true
+    },
+    {
+      "id": "OP-4",
+      "name": "Per-agent tool-count limit",
+      "trigger": "Agent tool list grows >=8 or starts mis-selecting tools",
+      "action": "Cap ~8 tools/agent; split role, add routing sub-agent, or demote read-only tools to context",
+      "output": "Every agent <= ceiling; better selection accuracy",
+      "evidence": ["crewai-sop:6.1-AP-1"],
+      "rationale": "too many tools degrades selection by same mechanism as too many agents degrades coordination",
+      "selected": true
+    },
+    {
+      "id": "OP-5",
+      "name": "Zero-tool synthesis agents",
+      "trigger": "Agent only consumes upstream output (writer/reporter/judge)",
+      "action": "Bind no tools; feed via task context / state",
+      "output": "Tool-free agent that cannot wander into capabilities",
+      "evidence": ["crewai-sop:DC-3"],
+      "selected": true
+    },
+    {
+      "id": "OP-6",
+      "name": "Binding-matrix audit",
+      "trigger": "Pre-ship or security review",
+      "action": "Build agents x tools matrix; flag write/destructive bound to >1 agent or unguarded; flag agents over count limit",
+      "output": "Reviewable capability matrix + remediation list",
+      "evidence": ["SKILL:Phase4"],
+      "selected": true
+    },
+    {
+      "id": "OP-7",
+      "name": "Tighten scope as fastest misuse fix",
+      "trigger": "Agent observed using a tool outside its role",
+      "action": "Remove the tool from that agent's binding rather than prompt-engineering 'do not use X'",
+      "output": "Structurally prevented misuse",
+      "evidence": ["crewai-sop:DC-3"],
+      "selected": true
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "title": "Shared tool registry vs per-agent tool sets",
+      "source": "crewai-sop:DC-3"
+    },
+    {
+      "id": "DC-2",
+      "title": "The 20-tool agent that picks the wrong tool",
+      "source": "crewai-sop:6.1-AP-1 + langgraph-sop:Step4/Case4"
+    },
+    {
+      "id": "DC-3",
+      "title": "Should a destructive tool ever be shared across agents?",
+      "source": "langgraph-sop:Step5/Case4 + crewai-sop:DC-3"
+    }
+  ],
+  "anti_patterns": [
+    "blanket tool sharing (tools=[all] on every agent)",
+    "no guard on destructive tools",
+    "one mega-agent with 20 tools",
+    "prompt-patching tool misuse instead of removing the binding",
+    "sharing the destructive tool itself instead of its definition",
+    "binding tools to synthesis agents"
+  ],
+  "cross_framework": {
+    "crewai": "Agent(tools=[...]) per agent",
+    "langgraph": "model.bind_tools([...]) per node",
+    "openai_assistants": "per-Assistant tools array",
+    "claude_tool_use": "per-request tools list"
+  },
+  "crosslinks": ["crewai", "http-tool-wrapping", "llm-tool-idempotency"]
+}

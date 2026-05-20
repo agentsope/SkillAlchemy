@@ -1,0 +1,149 @@
+{
+  "skill": "prompt-compilation",
+  "version": "0.1.0",
+  "capture_date": "2026-05-20",
+  "layer": "enhance-overlay",
+  "decision_layer_only": true,
+  "defers_implementation_to": ["dspy", "dspy-sop", "metric-design"],
+  "cross_links": ["dspy", "dspy-sop", "metric-design"],
+  "primary_source": "/Users/5imp1ex/Desktop/Skill-Workplace/output/dspy-sop-skill/SKILL.md",
+  "core_principle": "Compile when you can measure. The optimizer maximizes your metric — garbage metric in, garbage prompt out.",
+  "gates": [
+    {
+      "id": "GATE-1",
+      "name": "MEASURE",
+      "predicate": "metric exists AND human-validated >=20 spot-checks (>=30 open-ended), >=80% agreement, NOT a lone holistic LLM-judge",
+      "on_fail": "STOP -> route to [[metric-design]]"
+    },
+    {
+      "id": "GATE-2",
+      "name": "DATA",
+      "predicate": "labeled example count >= floor of the chosen optimizer",
+      "on_fail": "drop to a lower-floor optimizer, collect data, or STOP (LabeledFewShot as floor)"
+    }
+  ],
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "ReadinessGate",
+      "trigger": "Anyone about to call an optimizer's compile()",
+      "action": "Run Gate 1 (metric exists + validated >=20) then Gate 2 (examples >= optimizer floor). Any failure -> STOP.",
+      "output": "Decision token: compile-ready | not-ready + failing gate",
+      "evidence": ["dspy.ai/learn/optimization/overview/", "dspy-sop S1 three-stage gate", "dspy-sop Case C (S2)"],
+      "tags": ["entry-gate", "decision", "hard"]
+    },
+    {
+      "id": "OP-2",
+      "name": "MetricExistsCheck",
+      "trigger": "Gate 1",
+      "action": "Confirm metric(example, pred, trace=None) -> bool|float exists. If absent -> route to [[metric-design]], gate stays closed.",
+      "output": "Metric callable or STOP",
+      "evidence": ["dspy.ai/learn/optimization/overview/ (anti-pattern: compiling without a metric)", "dspy-sop S10"],
+      "tags": ["gate-1", "metric"]
+    },
+    {
+      "id": "OP-3",
+      "name": "MetricValidatedCheck",
+      "trigger": "Metric exists (OP-2)",
+      "action": "Require >=20 (open-ended >=30) human spot-checks at >=80% agreement + calibration receipt. If lone holistic LLM-judge, require decomposition first.",
+      "output": "validated flag + receipt reference",
+      "evidence": ["dspy-sop Case C step 4 (S11)", "dspy.ai/learn/evaluation/metrics/", "arxiv.org/pdf/2506.02592"],
+      "tags": ["gate-1", "metric", "calibration"]
+    },
+    {
+      "id": "OP-4",
+      "name": "ExampleFloorCheck",
+      "trigger": "Gate 2",
+      "action": "Count labeled examples; compare to floor of intended optimizer (LabeledFewShot any; GEPA ~10+feedback; Bootstrap ~30-50; MIPROv2 200+).",
+      "output": "cleared | below-floor + legal optimizer set",
+      "evidence": ["dspy.ai/learn/optimization/overview/ (30 min / 300 rec / 200+ MIPROv2) (S4)", "dspy-sop S5"],
+      "tags": ["gate-2", "data"]
+    },
+    {
+      "id": "OP-5",
+      "name": "OptimizerByDataScale",
+      "trigger": "Both gates passed",
+      "action": "Pick from optimizer-by-data-scale table by example count + feedback signal. Prefer GEPA when textual feedback exists (inverts data-scale floor).",
+      "output": "Optimizer choice + config",
+      "evidence": ["dspy.ai/learn/optimization/optimizers/ (S6)", "dspy.ai/api/optimizers/GEPA/overview/ (S7)", "arxiv.org/abs/2507.19457"],
+      "tags": ["pick", "core"]
+    },
+    {
+      "id": "OP-6",
+      "name": "CostBudgetGuard",
+      "trigger": "Before launching compile",
+      "action": "Estimate num_trials x |trainset| x calls; cap spend; set a cheap optimizer LM (gpt-4o-mini); enable track_usage=True.",
+      "output": "Budget ceiling + chosen optimizer LM",
+      "evidence": ["dspy.ai/faqs/ (S3)", "github.com/stanfordnlp/dspy/issues/1596 (S9)"],
+      "tags": ["budget", "cost"]
+    },
+    {
+      "id": "OP-7",
+      "name": "CheapProbeFirst",
+      "trigger": "Compile-ready, budget set",
+      "action": "Run auto=\"light\" (or smallest config) first. Never start at heavy.",
+      "output": "A cheap lift signal",
+      "evidence": ["github.com/stanfordnlp/dspy/issues/1596 (S8)", "dspy-sop Case A"],
+      "tags": ["probe", "cost"]
+    },
+    {
+      "id": "OP-8",
+      "name": "EscalateOrReturn",
+      "trigger": "Probe finished",
+      "action": "<2% lift -> return to program/metric design (do NOT escalate). 2-10% -> medium. heavy only if data >=300 + held-out test set. Confirm gain on held-out test.",
+      "output": "Escalate / iterate-back decision",
+      "evidence": ["dspy-sop Case A (S8)", "dspy.ai/learn/optimization/overview/ (S12 held-out)"],
+      "tags": ["decide", "core"]
+    }
+  ],
+  "optimizer_by_data_scale": [
+    {"examples": "<10", "feedback": "any", "optimizer": "LabeledFewShot(k=8)", "note": "No search; weakest. Usually STOP and collect data."},
+    {"examples": "~10+", "feedback": "textual (diffs, schema violations, judge rationales)", "optimizer": "dspy.GEPA(metric=m_with_feedback)", "note": "Inverts the data-scale rule; sample-efficient reflection on text feedback."},
+    {"examples": "~30-50", "feedback": "scalar", "optimizer": "BootstrapFewShot / ...WithRandomSearch", "note": "Self-bootstrapped demos; minimum useful regime."},
+    {"examples": "200+", "feedback": "scalar", "optimizer": "MIPROv2(metric=m, auto=\"light\") then escalate", "note": "Joint instruction+demo Bayesian search; 200 documented floor."},
+    {"examples": "any (post-MIPRO, ship smaller model)", "feedback": "-", "optimizer": "chain BootstrapFinetune(student=small, teacher=optimized)", "note": "Distills prompts into weights."}
+  ],
+  "cost_budget": [
+    {"config": "LabeledFewShot / BootstrapFewShot", "cost": "cents-~$1", "use_when": "floor; <=50 examples"},
+    {"config": "MIPROv2(auto=light)", "cost": "~$2-3, 6-20 min, ~3.2k calls", "use_when": "first probe, always"},
+    {"config": "MIPROv2(auto=medium)", "cost": "single-low-tens of $", "use_when": "light showed >=2% lift"},
+    {"config": "MIPROv2(auto=heavy)", "cost": "tens of $, hours", "use_when": "only if data >=300 + held-out test + budget"},
+    {"config": "GEPA (~10+ examples)", "cost": "low, sample-efficient", "use_when": "textual feedback available"}
+  ],
+  "dilemma_cases": [
+    {
+      "id": "D1",
+      "title": "Optimizer cost vs gain: is compiling even worth it?",
+      "scenario": "3-stage RAG at 72% dev after manual tuning; MIPROv2 auto=heavy would cost ~$40/4h; 250 examples; task LM gpt-4o.",
+      "resolution": "Gate 1 (was metric ever driving design?) -> probe auto=light (~$2) never heavy -> <2% lift means fix program/metric not add compute; 2-10% escalate to medium; use gpt-4o-mini optimizer LM.",
+      "extractable_ops": ["OP-1", "OP-6", "OP-7", "OP-8"],
+      "lesson": "Never open at heavy. Probe light with a cheap optimizer LM; treat <2% as a signal to fix the program, not to add compute.",
+      "source": "dspy-sop Case A"
+    },
+    {
+      "id": "D2",
+      "title": "Only 12 examples: GEPA inverts the data-scale assumption",
+      "scenario": "Code-fix agent with 12 labeled examples but rich textual feedback (test diffs, schema violations, linter errors).",
+      "resolution": "Gate 1 passes (test is ground truth). Do NOT apply scalar data ladder: textual feedback makes GEPA legal at ~10 examples. Pick GEPA returning dspy.Prediction(score, feedback); probe cheap; confirm on held-out.",
+      "extractable_ops": ["OP-4", "OP-5"],
+      "lesson": "The example floor is per-optimizer. If you can express why an output failed as text, GEPA inverts the data-scale assumption (~10 examples suffice). Don't reflexively gate out small feedback-rich datasets.",
+      "source": "dspy-sop optimizer table + Case C step 5; arxiv.org/abs/2507.19457"
+    }
+  ],
+  "anti_patterns": [
+    {"id": "AP-1", "name": "Compiling without a metric", "fix": "Refuse; build metric (OP-2, [[metric-design]])"},
+    {"id": "AP-2", "name": "Compiling against an un-validated single LLM-judge", "fix": "Validate >=20 spot-checks; decompose (OP-3)"},
+    {"id": "AP-3", "name": "Compiling on <10 examples (scalar feedback)", "fix": "Collect data / LabeledFewShot floor / GEPA if textual feedback (OP-4)"},
+    {"id": "AP-4", "name": "Starting at auto=heavy", "fix": "Probe auto=light first (OP-7)"},
+    {"id": "AP-5", "name": "Escalating after a <2% probe lift", "fix": "Return to program/metric design (OP-8)"},
+    {"id": "AP-6", "name": "Using the expensive task LM as the optimizer LM", "fix": "Cheap optimizer LM (OP-6)"},
+    {"id": "AP-7", "name": "Applying the scalar data-floor to a feedback-rich task", "fix": "Check for textual feedback before counting examples (OP-5)"},
+    {"id": "AP-8", "name": "Reporting gain on the val set used in optimization", "fix": "Confirm on held-out test set (OP-8)"},
+    {"id": "AP-9", "name": "Compiling while the Signature/I-O contract still churns", "fix": "Stabilize the contract first (signature-design / dspy-sop §1)"}
+  ],
+  "cross_framework": {
+    "dspy_optimizers": "prompt instructions+demos (optionally weights via BootstrapFinetune); metric REQUIRED; floors 10/30/200; both gates apply directly",
+    "manual_few_shot": "hand-edited prompt string; implicit/eyeballed metric (the failure mode); Gate 1 is exactly what's missing",
+    "openai_finetuning": "weights path; needs trustworthy held-out eval set (~50-100+ examples practical min); gate logic transfers, operators differ"
+  }
+}

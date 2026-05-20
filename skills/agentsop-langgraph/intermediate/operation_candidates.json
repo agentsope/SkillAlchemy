@@ -1,0 +1,208 @@
+{
+  "schema_version": "0.1.0",
+  "framework": "LangGraph",
+  "framework_version_observed": "1.2.0 (May 2026)",
+  "extraction_date": "2026-05-19",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Bootstrap ReAct agent",
+      "trigger": "User wants a tool-calling agent with no custom routing, parallelism, or state beyond messages.",
+      "action": "Use `from langgraph.prebuilt import create_react_agent` with a model and tools list. Add a checkpointer + thread_id for memory.",
+      "output": "Compiled graph supporting .invoke(), .stream(), with built-in message history and tool loop.",
+      "evidence": [
+        "https://agentsindex.ai/blog/langgraph-tutorial",
+        "https://reference.langchain.com/python/langgraph.prebuilt/chat_agent_executor/create_react_agent"
+      ],
+      "complexity": "low",
+      "tags": ["bootstrap", "prebuilt", "react"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Promote prebuilt agent to custom StateGraph",
+      "trigger": "Need state fields beyond messages, parallel branches, supervisor pattern, custom retry, or complex routing.",
+      "action": "Re-implement with `StateGraph(MyTypedDict)`; manually add nodes for LLM and tools; add `add_conditional_edges` on tool_calls; compile with checkpointer.",
+      "output": "Graph with explicit topology and full control.",
+      "evidence": ["https://agentsindex.ai/blog/langgraph-tutorial"],
+      "complexity": "medium",
+      "tags": ["migration", "stategraph", "promotion"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Add reducer to resolve InvalidUpdateError",
+      "trigger": "Two parallel nodes write the same state key; graph raises InvalidUpdateError.",
+      "action": "Change `key: list[X]` to `key: Annotated[list[X], operator.add]` (or `add_messages` for chat). For non-list types, write a custom reducer.",
+      "output": "Parallel writes merge correctly instead of conflicting.",
+      "evidence": [
+        "https://sumanmichael.github.io/langgraph-cheatsheet/cheatsheet/faqs-gotchas/",
+        "https://docs.langchain.com/oss/python/langgraph/graph-api"
+      ],
+      "complexity": "low",
+      "tags": ["state", "reducers", "parallelism"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Dynamic fan-out with Send API",
+      "trigger": "At runtime, number of parallel tasks is determined by state (e.g., one summarizer per retrieved chunk).",
+      "action": "From a conditional edge, return `[Send('worker', {'chunk': c}) for c in state['chunks']]`. Worker uses its own state schema; results reduced into parent state.",
+      "output": "True map-reduce, runtime-variable cardinality.",
+      "evidence": [
+        "https://deepwiki.com/langchain-ai/langchain-academy/7.1-map-reduce-pattern",
+        "https://medium.com/@vishy2k5/langgraph-send-api-7aaab56bc6b8"
+      ],
+      "complexity": "high",
+      "tags": ["parallelism", "send", "mapreduce"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Insert human approval gate via interrupt()",
+      "trigger": "Node would perform an irreversible action (charge card, send email, run DELETE).",
+      "action": "Call `decision = interrupt({'proposed': payload})` BEFORE side effect, with side effect in a downstream node. Compile with persistent checkpointer. Caller resumes with `Command(resume=...)`.",
+      "output": "Thread pauses, state persists, resumes with human decision threaded back.",
+      "evidence": [
+        "https://www.langchain.com/blog/making-it-easier-to-build-human-in-the-loop-agents-with-interrupt",
+        "https://docs.bswen.com/blog/2026-04-16-langgraph-human-in-the-loop/"
+      ],
+      "complexity": "medium",
+      "tags": ["hitl", "interrupt", "approval"]
+    },
+    {
+      "id": "OP-6",
+      "name": "Encapsulate subflow as a subgraph",
+      "trigger": "Logical chunk deserves isolation (research agent inside larger workflow, reusable validation pipeline).",
+      "action": "Compile child graph; add as node with `parent.add_node('research', subgraph)`. If schemas differ, wrap in a node function that translates.",
+      "output": "Reusable, independently testable module; child state isolated unless keys overlap.",
+      "evidence": [
+        "https://docs.langchain.com/oss/python/langgraph/use-subgraphs",
+        "https://deepwiki.com/langchain-ai/langgraph/3.5-control-flow-primitives"
+      ],
+      "complexity": "medium",
+      "tags": ["modularity", "subgraphs", "composition"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Migrate to Postgres checkpointer for production",
+      "trigger": "Moving from notebook to production OR multi-user OR thread state must survive deploys.",
+      "action": "Use `AsyncPostgresSaver`; pass to `.compile(checkpointer=...)`. Run `await saver.setup()` as a CI/CD migration, not at app boot. Implement TTL sweep for abandoned threads.",
+      "output": "Threads survive crashes; multi-replica safe; ACID guarantees.",
+      "evidence": [
+        "https://docs.langchain.com/oss/python/langgraph/persistence",
+        "https://docs.bswen.com/blog/2026-04-16-langgraph-human-in-the-loop/"
+      ],
+      "complexity": "medium",
+      "tags": ["persistence", "production", "postgres"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Stream tokens to UI while keeping graph observability",
+      "trigger": "Need char-by-char UX AND server-side debugging.",
+      "action": "Use `graph.stream(input, stream_mode=['messages', 'updates'])`. For intra-tool progress, emit via `stream_mode='custom'`.",
+      "output": "User sees streaming tokens; server logs state diffs.",
+      "evidence": ["https://docs.langchain.com/oss/python/langgraph/streaming"],
+      "complexity": "low",
+      "tags": ["streaming", "ux", "observability"]
+    },
+    {
+      "id": "OP-9",
+      "name": "Bound an agent loop with explicit exit condition",
+      "trigger": "Agent hits GRAPH_RECURSION_LIMIT (e.g., retry-same-error loop).",
+      "action": "Add a retry counter to state (`retries: Annotated[int, operator.add]`). Increment on failure; conditional edge routes to END after N tries. Surface error content to LLM. Do NOT just raise `recursion_limit`.",
+      "output": "Graceful termination on persistent failure.",
+      "evidence": [
+        "https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
+        "https://github.com/langchain-ai/langgraph/issues/6731",
+        "https://sumanmichael.github.io/langgraph-cheatsheet/cheatsheet/faqs-gotchas/"
+      ],
+      "complexity": "low",
+      "tags": ["termination", "loops", "safety"]
+    },
+    {
+      "id": "OP-10",
+      "name": "Time-travel debug a failed production run",
+      "trigger": "Production thread produced wrong answer; need to inspect state at step N and try alternatives.",
+      "action": "Fetch history via `graph.get_state_history(config)`; invoke with `config={'configurable': {'thread_id': ..., 'checkpoint_id': ...}}`. Modify with `graph.update_state(...)` to fork.",
+      "output": "Reproduce + fork past run without re-paying for replayed LLM calls.",
+      "evidence": ["https://dragonforest.in/time-travel-in-langgraph/"],
+      "complexity": "medium",
+      "tags": ["debugging", "time-travel", "replay"]
+    },
+    {
+      "id": "OP-11",
+      "name": "Choose supervisor vs swarm multi-agent topology",
+      "trigger": "Designing a multi-agent system; uncertain about pattern.",
+      "action": "Apply two binary tests: (1) Do sub-agents know each other? (2) Is a single user-facing voice mandatory? Both yes -> supervisor. Both no -> swarm. Mixed -> supervisor with LangChain's three documented fixes (remove handoff messages, forwarding-messages tool, tool naming optimization).",
+      "output": "Topology aligned with constraints; documented perf fixes applied.",
+      "evidence": ["https://www.langchain.com/blog/benchmarking-multi-agent-architectures"],
+      "complexity": "medium",
+      "tags": ["multi-agent", "supervisor", "swarm", "decision"]
+    },
+    {
+      "id": "OP-12",
+      "name": "Idempotency belt for resumable nodes",
+      "trigger": "Node performs external side effect and is reachable from an interrupted resume path.",
+      "action": "Generate idempotency key in state BEFORE entering side-effect node. Pass key to external SDK so re-execution is a no-op. Move side effect to a downstream node from any interrupt-bearing node.",
+      "output": "Side effects safe under resume re-runs.",
+      "evidence": [
+        "https://sumanmichael.github.io/langgraph-cheatsheet/cheatsheet/faqs-gotchas/",
+        "https://docs.bswen.com/blog/2026-04-16-langgraph-human-in-the-loop/"
+      ],
+      "complexity": "medium",
+      "tags": ["hitl", "idempotency", "safety"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "title": "Text-to-SQL agent loops to recursion_limit",
+      "source": "https://github.com/langchain-ai/langgraph/issues/6731",
+      "extracted_operations": ["OP-9"]
+    },
+    {
+      "id": "DC-2",
+      "title": "Supervisor vs swarm in multi-domain customer support",
+      "source": "https://www.langchain.com/blog/benchmarking-multi-agent-architectures",
+      "extracted_operations": ["OP-11"]
+    },
+    {
+      "id": "DC-3",
+      "title": "Replit-scale trace depth overwhelmed LangSmith",
+      "source": "https://www.alphabold.com/langgraph-agents-in-production/",
+      "extracted_operations": ["OP-4", "OP-6", "OP-10"]
+    },
+    {
+      "id": "DC-4",
+      "title": "Side effects before interrupt() re-execute on resume",
+      "source": "https://sumanmichael.github.io/langgraph-cheatsheet/cheatsheet/faqs-gotchas/",
+      "extracted_operations": ["OP-5", "OP-12"]
+    }
+  ],
+  "anti_patterns": [
+    "AP-1: Graphing a stateless pipeline",
+    "AP-2: Using recursion_limit as control flow",
+    "AP-3: Side effects before interrupt()",
+    "AP-4: Mutating state inputs",
+    "AP-5: Sharing parallel-written keys without a reducer",
+    "AP-6: Running checkpointer.setup() at app boot",
+    "AP-7: Leaving interrupted threads to rot (no TTL)",
+    "AP-8: Using MessageGraph for new code",
+    "AP-9: Blind parallelization (atomic-failure superstep)",
+    "AP-10: Send-API fan-out for fixed cardinality",
+    "AP-11: Trusting LLM-only loops to terminate",
+    "AP-12: Bloating state with large blobs",
+    "AP-13: Relying on subgraph state visible during execution",
+    "AP-14: Conflating create_react_agent with full LangGraph",
+    "AP-15: Skipping LangSmith in production"
+  ],
+  "ecosystem_position": {
+    "vs_crewai": "LangGraph for production durability; CrewAI for hour-scale prototyping. Common pattern: prototype on CrewAI, port to LangGraph.",
+    "vs_autogen": "AutoGen better for self-debugging code-gen; but in maintenance mode in 2026.",
+    "vs_swarm": "Swarm is reference / educational only; not production.",
+    "vs_plain_langchain": "LangChain for stateless flows / single LLM call; LangGraph for cycles, state, durability."
+  },
+  "caveats": [
+    "v1 Python docs were marked 'Alpha - content incomplete' as recently as early 2026.",
+    "TypeScript guide lags Python.",
+    "Maintainer responsiveness on agent-loop bugs is uneven (issue #6731 closed 'not planned').",
+    "SQL injection CVE reported in SQLite checkpointer in March 2026; use Postgres for production."
+  ]
+}

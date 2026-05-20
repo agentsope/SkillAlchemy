@@ -1,0 +1,117 @@
+{
+  "skill": "http-tool-wrapping",
+  "version": "0.1.0",
+  "capture_date": "2026-05-19",
+  "source_frameworks": ["LangGraph", "CrewAI", "LangChain @tool", "OpenAI function calling", "Anthropic tool_use", "MCP HTTP server"],
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Endpoint triage — pick which to surface",
+      "trigger": "Wrapping a new API as agent tools; API has >3 endpoints",
+      "action": "List every endpoint × CRUD verb. For each: ask 'what *user intent* would the agent be solving?' Drop endpoints that have no agent-facing intent (admin, batch jobs, webhooks-out). Output: ≤10 candidates worth surfacing.",
+      "output": "Triaged endpoint list with intent labels",
+      "evidence": ["zuplo.com/learning-center/api-readiness-gap-agent-callable-apis", "stainless.com/mcp/from-rest-api-to-mcp-server"],
+      "tags": ["design", "surface-area"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Name tools by intent, not by REST verb",
+      "trigger": "Naming each tool after triage",
+      "action": "Tool name = verb_object describing the user/agent intent: `search_orders`, `cancel_order`, `get_order_status` — NOT `post_orders_v2`, `delete_orders_id`, `get_orders_id`. Test: a non-API-savvy LM reading only the name should guess when to call it.",
+      "output": "Intent-named tool list",
+      "evidence": ["medium/velorum tool schemas", "apxml.com tool input output schemas"],
+      "tags": ["naming", "lm-ergonomics"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Define typed input schema (Pydantic / JSON Schema)",
+      "trigger": "For each surfaced tool",
+      "action": "Pydantic model with type-annotated fields. Every field gets a `description=` aimed at the LM (units, format, enum values, examples). Required vs Optional explicit. Flatten nested API params (e.g. `filter[status]=open` → `status: Literal['open','closed']`).",
+      "output": "Args schema attached to tool",
+      "evidence": ["python.langchain.com api_reference/core/tools", "developers.openai.com guides/function-calling", "docs.anthropic.com tool-use"],
+      "tags": ["schema", "validation"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Inject auth at wrapper boundary, never in args",
+      "trigger": "Tool needs API key / OAuth token",
+      "action": "Read secret from env var or secret store **inside** the wrapper. Never expose `api_key` as a tool parameter — the LM doesn't need to see it and may echo it in traces. Per-tenant tokens: pass via closure or context object, not via tool args.",
+      "output": "Tool that authenticates without secret in schema",
+      "evidence": ["northflank.com mcp-server-blog", "anthropic security guidance"],
+      "tags": ["security", "secrets"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Wrap with timeout + retry + jittered backoff",
+      "trigger": "Any outbound HTTP call from a tool",
+      "action": "httpx/requests with explicit `timeout=` (per-attempt). Retry only on 429/5xx/network errors, max 3-5 attempts, exponential backoff with jitter. Read `Retry-After` header when present. Never retry 4xx other than 408/429.",
+      "output": "Resilient HTTP client inside tool",
+      "evidence": ["apxml.com api-rate-limits-retries", "getknit.dev api-rate-limiting-best-practices", "boldsign.com api-retry-mechanism"],
+      "tags": ["reliability", "rate-limit"]
+    },
+    {
+      "id": "OP-6",
+      "name": "Handle pagination — cursor by default",
+      "trigger": "Endpoint returns lists with `next`/`cursor`/`Link` header",
+      "action": "Default: tool fetches one page, returns items + `next_cursor` in response. Let the agent decide to call again. Auto-loop only if max items is small (≤200) and bounded. Never auto-loop unbounded.",
+      "output": "Paginated tool with explicit cursor surface",
+      "evidence": ["techopsasia rest api design", "zuplo agent-callable-apis"],
+      "tags": ["pagination", "bounded-loop"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Shape response — trim to LM-relevant fields",
+      "trigger": "API returns large JSON (>2 KB or nested deep)",
+      "action": "Define an output Pydantic model with only fields the agent needs to reason or act on. Drop audit timestamps, internal IDs, deprecated mirrors. Return string summaries for blobs. Keep <2 KB per call when possible.",
+      "output": "Trimmed structured tool output",
+      "evidence": ["apxml.com tool-input-output-schemas", "gun.io wrap-existing-api-with-mcp"],
+      "tags": ["context-economy", "response-shaping"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Translate errors into actionable LM feedback",
+      "trigger": "API returns non-2xx, or local exception",
+      "action": "Catch HTTPStatusError / ValidationError. Return a structured error: `{error: 'rate_limited' | 'not_found' | 'invalid_input' | 'auth_failed' | 'server_error', message: '...', retryable: bool, hint: '...'}`. Never raise raw stack traces back to the LM.",
+      "output": "LM-readable error contract",
+      "evidence": ["langchain blog/structured-tools", "mightybot.ai fault-tolerant-ai-agent-pipelines"],
+      "tags": ["error-handling", "lm-feedback"]
+    },
+    {
+      "id": "OP-9",
+      "name": "Mark mutations with idempotency keys",
+      "trigger": "Tool performs POST/PUT/DELETE side effect",
+      "action": "Generate idempotency key (UUID v4 derived from logical operation) per call. Pass via `Idempotency-Key` header if API supports it. Tag the tool in metadata: `mutating=True, idempotent=True/False`. Cross-link to T4 (HITL/approval) for non-idempotent mutations.",
+      "output": "Mutation-safe tool with idempotency contract",
+      "evidence": ["techopsasia rest api design", "mightybot.ai fault-tolerant"],
+      "tags": ["idempotency", "side-effects"]
+    },
+    {
+      "id": "OP-10",
+      "name": "Wire into framework: @tool / Tool class / MCP",
+      "trigger": "Tool implementation done; deploying into agent",
+      "action": "LangChain/LangGraph: `@tool` decorator with Pydantic args_schema. CrewAI: subclass `BaseTool` with `_run`. OpenAI: `tools=[{type:'function', function:{...}}]`. Anthropic: `tools=[{name,description,input_schema}]`. MCP server: `@mcp.tool()`. Same Pydantic schema → all targets via `model_json_schema()`.",
+      "output": "Framework-bound tool ready for agent",
+      "evidence": ["docs.langchain.com python/langchain/tools", "docs.crewai.com en/concepts/tools", "modelcontextprotocol.io"],
+      "tags": ["framework-binding", "portability"]
+    }
+  ],
+  "anti_patterns_summary": [
+    "AP-1 1:1 endpoint→tool mapping (50 tiny tools, LM gets lost)",
+    "AP-2 Raw JSON blob returned to LM (context bloat, hallucinated field names)",
+    "AP-3 Secrets/tokens exposed in tool description or args (leak in traces)",
+    "AP-4 No rate-limit / retry handling (single 429 kills the run)",
+    "AP-5 Unbounded pagination auto-loop (token blowout, OOM)",
+    "AP-6 Procedural tool description ('First call X then Y') (treat tool as function, not a script)"
+  ],
+  "dilemma_cases_summary": [
+    "DC-1 Wide API (50+ endpoints): one mega-tool with `operation` param vs many small tools",
+    "DC-2 API returns 10 MB JSON: how much to expose to LM",
+    "DC-3 Async/long-running API (job → poll): single tool with internal wait vs two tools (submit + poll)"
+  ],
+  "key_quotes": [
+    {"text": "A mega-tool with a single instructions string invites hallucinations.", "source": "medium/velorum tool schemas"},
+    {"text": "Return machine-readable rate limit headers that agents can use to self-throttle.", "source": "zuplo.com agent-readiness-gap"},
+    {"text": "Cursor-based pagination is more reliable than offset/limit for agentic scrolling.", "source": "techopsasia.com rest api design"},
+    {"text": "Tool descriptions are often more important than code comments because the LLM directly uses them for reasoning.", "source": "apxml.com tool-input-output-schemas"}
+  ]
+}

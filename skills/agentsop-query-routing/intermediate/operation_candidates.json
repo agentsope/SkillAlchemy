@@ -1,0 +1,142 @@
+{
+  "skill": "query-routing",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "cross_links": ["llamaindex", "dify", "langgraph"],
+  "one_sentence": "One retriever cannot serve all query types; classify the query and route first, retrieve second, and always define a fallback for the unrouteable query.",
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "EnumerateQueryTypes",
+      "trigger": "A single endpoint fronts heterogeneous queries; no query-type table exists.",
+      "action": [
+        "Sample >=50 real queries.",
+        "Label each by kind: summarize / lookup / compute-aggregate / compare-multihop / out-of-scope.",
+        "Map each kind to its correct handler + index primitive."
+      ],
+      "output": "Query-type -> handler spec table driving both handler build and router design.",
+      "evidence": ["llamaindex: Stage 0 query distribution; Stage 4 heterogeneity table"]
+    },
+    {
+      "id": "OP-02",
+      "name": "BuildPerTypeHandler",
+      "trigger": "Type table exists; handlers not yet built.",
+      "action": [
+        "Implement one engine per type (SummaryIndex digest, VectorStoreIndex lookup, NL2SQL compute, SubQuestionQueryEngine compare).",
+        "Test each handler against its own query kind in isolation.",
+        "Author each handler's destination description / class label."
+      ],
+      "output": "N independently-verified handlers, each carrying a routing description.",
+      "evidence": ["llamaindex: OP-06 RouteByQueryType; OP-07 DecomposeMultiHop"]
+    },
+    {
+      "id": "OP-03",
+      "name": "KeywordRouter",
+      "trigger": "Destinations are lexically distinct; latency/cost-critical path.",
+      "action": [
+        "regex/substring/heuristic rules over the query -> handler id.",
+        "Explicit default for no-match.",
+        "No model call."
+      ],
+      "output": "Sub-millisecond, deterministic, free routing for separable cases.",
+      "evidence": ["dify: IF/ELSE node", "langgraph: conditional edge as pure predicate (add_conditional_edges)"]
+    },
+    {
+      "id": "OP-04",
+      "name": "EmbeddingRouter",
+      "trigger": "Destinations semantically (not lexically) distinct; no per-call LLM budget.",
+      "action": [
+        "Embed the query.",
+        "Cosine-match against pre-embedded destination descriptions / few examples per route.",
+        "Pick argmax; threshold for fallback."
+      ],
+      "output": "Cheap low-latency semantic routing without an LLM hop.",
+      "evidence": ["llamaindex: EmbeddingSingleSelector family; router docs"]
+    },
+    {
+      "id": "OP-05",
+      "name": "LLMSelectorRouter",
+      "trigger": "Disambiguation needs reasoning, or a query maps to multiple handlers.",
+      "action": [
+        "Use an LLM selector (single or multi) reading the query + each handler's description.",
+        "RouterQueryEngine(selector=LLMSingleSelector.from_defaults(), query_engine_tools=[...]).",
+        "Return chosen id(s) + reasoning."
+      ],
+      "output": "Highest-accuracy routing incl. multi-route fan-out; costs one LLM round-trip.",
+      "evidence": ["llamaindex: OP-06 + Dilemma 3; SelectorPromptTemplate"]
+    },
+    {
+      "id": "OP-06",
+      "name": "ConfidenceThresholdFallback",
+      "trigger": "Any router that can be uncertain (LLM/embedding) on ambiguous queries.",
+      "action": [
+        "Read the selector's score.",
+        "Below threshold -> route to documented default (broad vector index) or explicit refuse path.",
+        "Never best-guess silently."
+      ],
+      "output": "Unrouteable queries land somewhere safe and auditable.",
+      "evidence": ["langgraph: conditional edge default branch", "dify: Question Classifier 'other' class"]
+    },
+    {
+      "id": "OP-07",
+      "name": "RouteDecisionLogging",
+      "trigger": "Any production router.",
+      "action": [
+        "Log {ts, query_hash, chosen_handler, selector_score, fell_back} on every decision.",
+        "Surface a misroute dashboard."
+      ],
+      "output": "Misroutes become observable metrics, not user-reported anecdotes.",
+      "evidence": ["dify: 7-class trace incl. routing", "langgraph: LangSmith trace of the conditional edge"]
+    },
+    {
+      "id": "OP-08",
+      "name": "DescriptionFirstDebug",
+      "trigger": "Router misroutes a known query class.",
+      "action": [
+        "Before swapping router type, rewrite destination description / add 1-2 disambiguating examples.",
+        "Re-evaluate on a labeled routing eval set."
+      ],
+      "output": "Most misroutes fixed at the description layer with no model change.",
+      "evidence": ["llamaindex: Dilemma 3 'the only signal the router sees'"]
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D1",
+      "name": "Router misroutes: improve classifier or add fallback?",
+      "resolution": "Both, in order: diagnose via log -> fix descriptions (OP-08) -> add fallback (OP-06) -> only then consider a bigger selector.",
+      "ops": ["OP-08", "OP-06", "OP-07"]
+    },
+    {
+      "id": "D2",
+      "name": "LLM router latency vs cheap keyword router",
+      "resolution": "Tier the router: cheap keyword/embedding front handles the confident majority; LLM selector handles only the ambiguous residual.",
+      "ops": ["OP-03", "OP-04", "OP-05", "OP-06"]
+    },
+    {
+      "id": "D3",
+      "name": "Route to one handler vs multi-select fan-out",
+      "resolution": "Single-select by default; multi-select only on the measured multi-intent slice, paired with explicit synthesis.",
+      "ops": ["OP-05", "OP-07"]
+    }
+  ],
+  "anti_patterns": [
+    "A1 router when one index suffices",
+    "A2 no fallback / default branch",
+    "A3 LLM selector on every query when keyword would do",
+    "A4 vague destination descriptions",
+    "A5 no routing decision logging",
+    "A6 routing by tenant/permission instead of query kind",
+    "A7 multi-select as the default",
+    "A8 best-guess on low confidence",
+    "A9 tuning the router before the handlers work"
+  ],
+  "boundaries": [
+    "B1 one index/tool answers everything -> no router",
+    "B2 split by who-asks (tenant/ACL) -> multi-tenant-rag",
+    "B3 fixed downstream sequence -> static edge",
+    "B4 hard real-time + LLM-only correct router -> tier and escalate rarely",
+    "B5 agentic/iterative loop -> langgraph cycles, not a one-shot router"
+  ]
+}

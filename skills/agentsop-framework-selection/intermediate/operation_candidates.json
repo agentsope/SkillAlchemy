@@ -1,0 +1,144 @@
+{
+  "skill": "framework-selection",
+  "version": "0.1.0",
+  "phase": "D (capstone)",
+  "capability": "A7 — Decision tree at project kickoff / framework-fit check (core, 5/7 SOPs)",
+  "capture_date": "2026-05-20",
+  "stance": "neutral; frameworks-are-layers-not-competitors; surfaces disagreements rather than crowning a winner",
+  "source_sops": ["langgraph", "llamaindex", "dspy", "crewai", "vllm", "aider", "dify"],
+  "synthesis_input": "phase-b-coder-agent-skill-inventory.md (A7 + 'where the 7 SOPs disagree')",
+  "cross_links": ["llm-engine-selection", "agent-topology-selection", "repo-state-gating"],
+  "layers": [
+    {"id": "L1", "name": "Modeling / prompt-compile", "owners": ["DSPy", "Outlines", "Guidance", "LMQL", "raw prompts"]},
+    {"id": "L2", "name": "Retrieval / context", "owners": ["LlamaIndex", "Haystack", "RAGFlow", "Aider repo-map (code)", "raw vector store"]},
+    {"id": "L3", "name": "Orchestration / control", "owners": ["LangGraph", "CrewAI", "LlamaIndex Workflows", "single-agent+tools", "AutoGen (maint)", "OpenAI Swarm (exp)"]},
+    {"id": "L6", "name": "Serving / inference", "owners": ["vLLM", "SGLang", "TensorRT-LLM", "llama.cpp", "Ollama", "TGI (maint)"], "delegate": "llm-engine-selection"},
+    {"id": "L7", "name": "App platform / UI / auth", "owners": ["Dify", "Flowise", "LangFlow", "n8n", "Coze"]},
+    {"id": "X", "name": "Coding-agent surface (cross-cutting)", "owners": ["Aider", "Cline", "Cursor", "Continue", "OpenHands"], "delegate": "repo-state-gating"}
+  ],
+  "operations": [
+    {
+      "id": "G0",
+      "name": "Do-you-even-need-a-framework gate (per layer)",
+      "trigger": "Before adopting any framework on any layer",
+      "action": "Confirm raw SDK is insufficient. L1 raw-wins: 1 call, no metric, verbatim audit, rapid iter. L2 raw-wins: corpus <100k tokens & static. L3 raw-wins: control flow fits if/else, no state, no HITL.",
+      "output": "framework-needed | raw-sufficient (per layer)",
+      "evidence": ["llamaindex-sop · R5", "langgraph-sop · R5", "dspy-sop · R5"],
+      "tags": ["gate", "anti-overhead"]
+    },
+    {
+      "id": "OP-1",
+      "name": "Layer identification (Pass A)",
+      "trigger": "Project kickoff; before any pip install",
+      "action": "Walk the stack; mark L1/L2/L3/L6/L7 + coding-surface needed or not for THIS project.",
+      "output": "layer map",
+      "evidence": ["phase-b · A7", "dspy-sop · R5", "llamaindex-sop · R5", "dify-sop · R5"],
+      "tags": ["entry", "highest-leverage"]
+    },
+    {
+      "id": "OP-2",
+      "name": "L1 Modeling pick rubric",
+      "trigger": "L1 needed",
+      "action": "raw prompts default; DSPy at ≥2 calls + ≥30 examples + metric + swaps; Outlines/Guidance for grammar guarantees; avoid same-layer collision with LangChain prompts.",
+      "output": "L1 decision",
+      "evidence": ["dspy-sop · R5"],
+      "tags": ["per-layer"]
+    },
+    {
+      "id": "OP-3",
+      "name": "L2 Retrieval pick rubric",
+      "trigger": "L2 needed",
+      "action": "LlamaIndex default; Haystack for classical IR; RAGFlow when retrieval quality is THE bottleneck; raw vector store only if ≤2 primitives; Aider repo-map (not embeddings) for code corpora.",
+      "output": "L2 decision",
+      "evidence": ["llamaindex-sop · R5", "dify-sop · R5", "aider-sop · R5"],
+      "tags": ["per-layer", "disagreement:code-embeddings-vs-repomap"]
+    },
+    {
+      "id": "OP-4",
+      "name": "L3 Orchestration pick rubric",
+      "trigger": "L3 needed",
+      "action": "Gate via agent-topology-selection first (~80% single-agent). Then: LangGraph for cycles/durable/HITL/time-travel/parallel; CrewAI for whiteboard roles + demo speed; Workflows for retrieval-heavy + some agency; AutoGen only if debate-is-product (maint-mode).",
+      "output": "L3 decision",
+      "evidence": ["langgraph-sop · R5", "crewai-sop · R5", "llamaindex-sop · R5", "crewai-sop · DC-1"],
+      "tags": ["per-layer", "delegate:agent-topology-selection", "disagreement:graph-vs-role"]
+    },
+    {
+      "id": "OP-5",
+      "name": "L6 Serving pick (delegate)",
+      "trigger": "Self-hosting open-weights models",
+      "action": "Hand off to llm-engine-selection. Summary: vLLM default; SGLang prefix-heavy; TensorRT-LLM NVIDIA-locked+budget; llama.cpp CPU/edge/≤1user; Ollama dev. Hosted API → skip L6.",
+      "output": "L6 decision (or skip)",
+      "evidence": ["vllm-sop · R5", "vllm-sop · OP-7"],
+      "tags": ["per-layer", "delegate:llm-engine-selection"]
+    },
+    {
+      "id": "OP-6",
+      "name": "L7 App-platform pick rubric",
+      "trigger": "L7 needed (non-engineers operate / scaffolding bottleneck)",
+      "action": "Dify for scaffolding + mixed-role; Flowise for single chatbot; LangFlow for export-to-Python; n8n for automation-first. Plan code-escape hatch; mind ceiling.",
+      "output": "L7 decision",
+      "evidence": ["dify-sop · R5"],
+      "tags": ["per-layer", "ceiling-aware"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Coding-agent surface pick (gate first)",
+      "trigger": "Deliverable is code edits in a repo",
+      "action": "Gate via repo-state-gating (existing repo vs greenfield). Then Aider (terminal/git/scriptable) / Cline (VS Code approval) / Cursor (visual) / Continue (cross-IDE) / OpenHands (autonomous).",
+      "output": "coding-surface decision",
+      "evidence": ["aider-sop · R5"],
+      "tags": ["cross-cutting", "delegate:repo-state-gating"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Interop check (Pass C)",
+      "trigger": "All layers picked",
+      "action": "Confirm pieces compose. Additive: DSPy-in-node, retriever-as-tool, Dify+LangGraph-behind-HTTP, vLLM via OpenAI-compatible API. Re-pick on same-layer collisions.",
+      "output": "validated stack",
+      "evidence": ["dspy-sop · R5", "dify-sop · R5", "llamaindex-sop · R5"],
+      "tags": ["interop", "validation"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "name": "LangGraph vs CrewAI (graph vs role)",
+      "resolution": "Whiteboard test (named teammates, no branching → CrewAI) vs durability test (cycles/crash/multi-tenant/HITL/time-travel → LangGraph). Standard arc: prototype CrewAI → port LangGraph. No clean crossover rubric (conceded).",
+      "evidence": ["crewai-sop · R5", "langgraph-sop · R5", "phase-b · open-questions"]
+    },
+    {
+      "id": "DC-2",
+      "name": "Framework vs raw SDK (when raw wins)",
+      "resolution": "Run G0 per layer. Raw wins: 1 call no-metric (L1); <100k static corpus (L2); if/else control flow no-HITL (L3). DSPy line-count is not a reason to compile a task that doesn't need it.",
+      "evidence": ["dify-sop · R5", "llamaindex-sop · R5", "langgraph-sop · R5", "dspy-sop · R5"]
+    },
+    {
+      "id": "DC-3",
+      "name": "Dify visual vs code framework (the ceiling)",
+      "resolution": "Start visual when scaffolding-bottleneck + mixed-role; plan code-escape up front; migrate at ceiling (>40-50 nodes / HITL needed / >10 QPS-pod / extreme RAG). Thresholds Dify-specific, directional only.",
+      "evidence": ["dify-sop · R5", "phase-b · open-questions"]
+    },
+    {
+      "id": "DC-4",
+      "name": "LlamaIndex vs LangGraph for agentic RAG (which layer leads)",
+      "resolution": "Let dominant difficulty lead. Messy-docs/retrieval-quality → build around LlamaIndex, add LangGraph when agency emerges. Multi-step/many-tools/durable-state → build around LangGraph, embed LlamaIndex retrievers as a tool.",
+      "evidence": ["llamaindex-sop · R5", "langgraph-sop · R5"]
+    }
+  ],
+  "anti_patterns": [
+    {"id": "AP-1", "name": "Framework-driven development (pick before knowing problem)", "fix": "Pass A first; framework choice is downstream of layer map", "evidence": ["phase-b · A7"]},
+    {"id": "AP-2", "name": "One framework for all layers", "fix": "choose per layer; compose", "evidence": ["dspy-sop · R5"]},
+    {"id": "AP-3", "name": "Same-layer framework collision (e.g. DSPy + LangChain prompts)", "fix": "one per layer; mixed same-layer adoption is a smell", "evidence": ["dspy-sop · R5"]},
+    {"id": "AP-4", "name": "Visual-builder past its ceiling", "fix": "planned code-escape hatch, not more nodes", "evidence": ["dify-sop · R5"]},
+    {"id": "AP-5", "name": "Treating serving as an orchestration choice", "fix": "L6 is a different layer; defer to llm-engine-selection", "evidence": ["langgraph-sop · R5"]},
+    {"id": "AP-6", "name": "Adopting maintenance-mode tools blind (AutoGen/Swarm/TGI)", "fix": "adoption-risk is a first-class selection criterion", "evidence": ["crewai-sop · R5", "vllm-sop · R5"]}
+  ],
+  "unresolved_disagreements": [
+    "graph-vs-role crossover point",
+    "HITL first-class (LangGraph) vs unsupported (Dify)",
+    "Dify node-count ceiling thresholds (engine-specific)",
+    "embeddings vs symbol-map for code",
+    "JSON-tool-call degradation for non-code outputs",
+    "multi-agent benefit at all (~80% single-agent)"
+  ]
+}

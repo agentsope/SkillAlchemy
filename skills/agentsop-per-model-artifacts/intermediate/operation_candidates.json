@@ -1,0 +1,88 @@
+{
+  "skill": "per-model-artifacts",
+  "phase": "D",
+  "frequency": "medium",
+  "scope": "Lifecycle SOP for versioning compiled prompts / model-specific config artifacts per (program × LM × dataset) triple",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "TripleNameArtifact",
+      "trigger": "Compiling/saving a prompt program or pinning model-specific config (DSPy compile, Aider edit-format choice, LlamaIndex Settings, LangChain Hub push)",
+      "action": "Encode (program, lm_id_with_snapshot, dataset_version) in the path. Example: artifacts/<program>/<provider>/<model-with-snapshot>/<dataset-version>/v<n>.json — e.g. artifacts/rag_synth/openai/gpt-4o-2024-08-06/devset-v3/v3.json",
+      "output": "Path is grep-able for any audit: which model, which dataset, which compile run.",
+      "evidence": "DSPy SKILL Case B: 'Treat the compiled program as a (program × LM) pair. Changing the LM invalidates the artifact — recompile.' aider edit-format defaults vary per model (diff/udiff/patch/whole)."
+    },
+    {
+      "id": "OP-2",
+      "name": "PinModelSnapshot",
+      "trigger": "Any save of compiled prompt or model-specific config",
+      "action": "Refuse generic aliases like 'gpt-4o' or 'claude-3-5-sonnet'. Pin to dated snapshot: 'gpt-4o-2024-08-06', 'claude-3-5-sonnet-20241022', 'claude-3-7-sonnet-20250219', 'gpt-4o-mini-2024-07-18'. Record in artifact metadata block.",
+      "output": "Metadata header: {model: '...', snapshot: '...', provider: '...', compiled_at: ISO, dspy_version: '...'}",
+      "evidence": "Silent provider-side 'patch' updates change outputs — see Case B2. OpenAI/Anthropic both retain old snapshots for ~12 months; alias rolls forward."
+    },
+    {
+      "id": "OP-3",
+      "name": "RegisterArtifact",
+      "trigger": "After successful compile and held-out eval",
+      "action": "Write to a per-repo registry index (artifacts/REGISTRY.jsonl) one line per artifact with: path, sha256, model snapshot, dataset hash, metric name, dev score, test score, compile cost USD, wall time. Append-only.",
+      "output": "REGISTRY.jsonl is the canonical source of truth queried by deploy scripts and the regression gate.",
+      "evidence": "MLflow registry analogy; LangChain Hub stores prompts but does NOT track model; manual jsonl+git is the lightweight equivalent."
+    },
+    {
+      "id": "OP-4",
+      "name": "SwapTest",
+      "trigger": "Provider deprecation notice OR considering an LM swap OR new snapshot announced",
+      "action": "Load existing artifact unchanged. Re-run the held-out test set against the NEW model. If Δ-score on the dev metric exceeds the regression gate (default Δ ≤ 2 points on a 0-100 scale), tag the artifact as 'transferable for this swap'. Otherwise mark 'recompile required'.",
+      "output": "swap-report-<old>-to-<new>.md with side-by-side scores. Boolean recompile_required.",
+      "evidence": "DSPy SKILL Case B: compiled-for-GPT-4 typically loses 8–15 points on Llama-3-8B. Anthropic Sonnet 3.5 → 3.7 shows ~5-8 pt regressions on aider's edit-format benchmarks without rework."
+    },
+    {
+      "id": "OP-5",
+      "name": "RegressionGate",
+      "trigger": "Any PR that adds or replaces an artifact",
+      "action": "CI step loads the new artifact, re-runs held-out test set, compares against the OLD artifact (looked up by program+dataset key in REGISTRY.jsonl). Fail PR if test score drops > N points (default 2). Require human override label to merge.",
+      "output": "CI status check 'artifact-regression: pass | fail | overridden'.",
+      "evidence": "DSPy save_program produces plain JSON — bytewise diff is unreliable signal; metric on test set is the only ground truth."
+    },
+    {
+      "id": "OP-6",
+      "name": "RecompileOnSwap",
+      "trigger": "OP-4 returns recompile_required=true OR LM family changes (provider change, parameter-class change e.g. 8B→70B)",
+      "action": "Re-run the same optimizer that produced the original artifact (recorded in REGISTRY) against the new model with the same dataset. Bump artifact version (v3 → v4). Update REGISTRY entry.",
+      "output": "New artifact at artifacts/<program>/<new-model-snapshot>/<dataset-version>/v<n+1>.json. Old artifact retained.",
+      "evidence": "DSPy doctrine: 'swap the LLM definition and re-compile your program.' Keep both versions checked in for A/B."
+    },
+    {
+      "id": "OP-7",
+      "name": "DeprecationCalendar",
+      "trigger": "Once per quarter OR on provider deprecation announcement (OpenAI dashboard, Anthropic changelog)",
+      "action": "Scan REGISTRY.jsonl for snapshots ≤ 90 days from deprecation. Open issue per artifact with target re-compile date. Block new pins to soon-deprecated snapshots in pre-commit.",
+      "output": "Quarterly deprecation report; pre-commit hook (.pre-commit/check-snapshot-deprecation.py).",
+      "evidence": "OpenAI deprecates snapshots ~12 months after release; Anthropic Sonnet 3.5 (claude-3-5-sonnet-20240620) retired Oct 2025."
+    },
+    {
+      "id": "OP-8",
+      "name": "ImmutableArtifact",
+      "trigger": "Any time someone edits a compiled JSON by hand",
+      "action": "Forbid. Add a pre-commit hook that rejects modifications to files under artifacts/ unless paired with a REGISTRY.jsonl append. Compiled artifacts are reproducible from REGISTRY (program ref + dataset hash + optimizer config + seed) — manual edits silently invalidate metric guarantees.",
+      "output": "pre-commit hook 'no-edit-artifact'.",
+      "evidence": "DSPy SKILL anti-pattern #3: 'Editing the compiled JSON by hand … invalidates the assumption that the artifact was metric-optimized.'"
+    },
+    {
+      "id": "OP-9",
+      "name": "DatasetHashInPath",
+      "trigger": "Any time training or eval data changes",
+      "action": "Compute sha256 over the canonicalized dataset. Use first-8 in the artifact path: devset-v3-a8f1c2e9. Two artifacts with same model but different dataset hash MUST live in different paths.",
+      "output": "Path collisions are impossible — drift is visually obvious in PR diff.",
+      "evidence": "Compiled artifacts overfit to their training distribution; conflating two datasets produces silent drift."
+    },
+    {
+      "id": "OP-10",
+      "name": "GitTagOnRelease",
+      "trigger": "When an artifact is promoted to production",
+      "action": "Create git tag 'prompt/<program>/<model-snapshot>/v<n>' pointing at the commit that contains the artifact AND its REGISTRY entry. Deploy script reads the tag — never reads HEAD.",
+      "output": "Reproducible rollback: 'git checkout prompt/rag_synth/gpt-4o-2024-08-06/v3' restores the exact artifact + metadata.",
+      "evidence": "MLflow Model Registry analogy: 'Staging/Production/Archived' aliases on versioned artifacts."
+    }
+  ]
+}

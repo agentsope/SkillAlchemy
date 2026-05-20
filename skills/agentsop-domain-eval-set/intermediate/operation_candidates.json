@@ -1,0 +1,73 @@
+{
+  "skill": "domain-eval-set",
+  "version": "0.1.0",
+  "phase": "D",
+  "overlay": "ENHANCE",
+  "summary": "Build and govern a 50-200 example domain-specific held-out benchmark. Distinct from public benchmarks (MMLU/HumanEval/GSM8K via lm-evaluation-harness) which measure general capability, not YOUR task. Only a held-out domain set predicts production behavior.",
+  "operations": [
+    {
+      "id": "OP-DE01",
+      "name": "SourceFromRealTraffic",
+      "trigger": "Need to know whether a system works on the actual domain; no curated eval set exists yet; production or pilot traffic is available.",
+      "action": "Sample real domain inputs (logs, tickets, queries, transactions) stratified by query type / segment / difficulty. Pull edge cases and failure reports deliberately, not just the head of the distribution.",
+      "output": "Raw candidate example pool (>= 2x target size) with provenance and timestamp per example.",
+      "evidence": "DSPy build-a-dev-set discipline [dspy.ai/learn/optimization/overview/]; LlamaIndex eval is built from the corpus, not synthetic in isolation (OP-10 EvalLoop)."
+    },
+    {
+      "id": "OP-DE02",
+      "name": "LabelAndCurate",
+      "trigger": "Raw candidate pool collected; need ground-truth or reference outputs.",
+      "action": "Attach gold answer / acceptable-reference / pass-fail label per example. Two annotators on a subset; resolve disagreement; drop ambiguous items. Record the rubric used. For RAG, label the gold passage too (for MRR/hit-rate).",
+      "output": "Curated labeled set with inter-annotator agreement noted; rejected/ambiguous items logged.",
+      "evidence": "DSPy Case C: spot-check metric vs human on >=20 cases before trusting it; LlamaIndex RetrieverEvaluator needs labeled gold passages [developers.llamaindex.ai/python/framework-api-reference/evaluation/]."
+    },
+    {
+      "id": "OP-DE03",
+      "name": "HoldOutDiscipline",
+      "trigger": "Labeled set exists and is about to be used.",
+      "action": "Split into train / dev / test (held-out). The held-out test set is NEVER shown to the optimizer, NEVER pasted into a prompt as a few-shot demo, NEVER used to pick chunk size / reranker / model. Store it separately; gate access.",
+      "output": "Sealed held-out test split + train/dev splits; access policy documented.",
+      "evidence": "DSPy: 'compiled program beats baseline on a held-out test set (not the val set used in optimization)' [dspy.ai/learn/optimization/overview/]; DSPy Case A step 4 requires held-out distinct from val."
+    },
+    {
+      "id": "OP-DE04",
+      "name": "SizeFor50to200",
+      "trigger": "Deciding how many examples the held-out set needs.",
+      "action": "Target 50-200 domain examples. 50 = minimum for a coarse production signal; 100-200 = stable enough to detect ~5-10pp regressions and to stratify by segment. Below ~30, differences are noise. Size up if you need per-segment slices.",
+      "output": "Sized held-out set with per-segment counts.",
+      "evidence": "DSPy sweet spot: 30 minimum useful, 200+ required for MIPROv2 to avoid overfit [dspy.ai/learn/optimization/overview/]; LlamaIndex DatasetGenerator default num=50 [llamaindex SKILL OP-10]."
+    },
+    {
+      "id": "OP-DE05",
+      "name": "VersionTheSet",
+      "trigger": "Held-out set is finalized for a release cycle.",
+      "action": "Pin the set as a versioned artifact (eval_v1.jsonl) with a hash, a creation date, and the labeling rubric. Score every model/prompt/retriever change against the SAME version. Bump version only on a deliberate refresh.",
+      "output": "Versioned, hashed eval artifact checked into the repo; results table keyed by (artifact_version, system_version).",
+      "evidence": "DSPy ships program.json as a versioned artifact [dspy.ai/tutorials/saving/]; LlamaIndex versions indices as deployment artifacts (Stage 5)."
+    },
+    {
+      "id": "OP-DE06",
+      "name": "RefreshOnDomainShift",
+      "trigger": "Domain distribution drifts (new product, new user segment, seasonal change); held-out scores stop tracking production complaints.",
+      "action": "Add fresh real examples from recent traffic; retire stale ones; re-label edge cases that production surfaced. Bump the version. Keep the old version for back-comparison. Refresh cadence: quarterly or on any major domain change, whichever first.",
+      "output": "New eval version; drift log noting what changed and why.",
+      "evidence": "LlamaIndex live-corpus reconciliation (IngestionPipeline UPSERTS_AND_DELETE, A10); production post-mortems trace failures to stale eval not matching live distribution."
+    },
+    {
+      "id": "OP-DE07",
+      "name": "LeakAudit",
+      "trigger": "Before any release; whenever few-shot demos or fine-tune data are assembled.",
+      "action": "Diff the held-out set against (a) few-shot prompt demos, (b) fine-tune / training data, (c) the DSPy trainset. Any overlap = contamination -> the held-out number is inflated and meaningless. Remove the overlap or rebuild the split.",
+      "output": "Leak-audit report: 0 overlap confirmed, or list of leaked items removed.",
+      "evidence": "DSPy held-out-distinct-from-val rule [dspy.ai/learn/optimization/overview/]; ML contamination literature; metric-design calibration-receipt provenance discipline (OP-M10)."
+    },
+    {
+      "id": "OP-DE08",
+      "name": "PairWithPublicBench",
+      "trigger": "A public-benchmark number (MMLU/HumanEval/GSM8K) is being used to justify a deployment decision.",
+      "action": "Treat the public bench as a capability floor / sanity check only. Require the domain held-out set as the decision gate. Report both side by side; if they disagree, the domain set wins for the go/no-go.",
+      "output": "Two-axis report: {public capability score, domain held-out score}; deployment gated on the latter.",
+      "evidence": "lm-evaluation-harness covers public academic benchmarks, not your domain [~/.claude/skills/lm-evaluation-harness]; public benches measure general capability not task fit."
+    }
+  ]
+}

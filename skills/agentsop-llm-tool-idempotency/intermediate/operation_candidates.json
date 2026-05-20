@@ -1,0 +1,133 @@
+{
+  "schema_version": "0.1.0",
+  "skill": "llm-tool-idempotency",
+  "domain": "coder-agent / tool-execution-safety",
+  "extraction_source": "SKILL.md §4 操作模型 (Operation Models)",
+  "extraction_date": "2026-05-20",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Idempotency-key HTTP header (Stripe pattern)",
+      "trigger": "Wrapping a third-party API that supports idempotency keys (Stripe, Square, modern PayPal, Adyen, Anthropic Files, AWS with client tokens).",
+      "action": "Before the call, read or generate `key = state.get(\"charge_key\") or uuid4()`; persist to state; pass as `Idempotency-Key: <key>` header (or SDK kwarg, e.g. `stripe.PaymentIntent.create(..., idempotency_key=key)`).",
+      "output": "At most one server-side execution per key; retries return the cached response. TTL ~24h for Stripe.",
+      "evidence": [
+        "[stripe/idempotency] https://docs.stripe.com/api/idempotent_requests"
+      ],
+      "tags": ["external-api", "native-key", "default"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Dedup table at the tool-call layer",
+      "trigger": "Internal API with no native idempotency, multi-row write, or aggregation that doesn't fit content-addressing.",
+      "action": "Create table `tool_call_dedup(key TEXT PRIMARY KEY, tool_name TEXT, args_hash TEXT, result JSONB, status TEXT, created_at TIMESTAMPTZ)`. On call: `INSERT … ON CONFLICT(key) DO NOTHING RETURNING …`. If insert succeeds, perform side effect, then `UPDATE … SET result=…, status='completed'`. If conflict, read row and return its `result`.",
+      "output": "Single execution per key across all retries; replayable result.",
+      "evidence": [
+        "[stripe/idempotency] https://docs.stripe.com/api/idempotent_requests",
+        "[aws/idempotency-whitepaper] AWS Architecture Blog: 'Building idempotent APIs'; Powertools-Lambda idempotency module docs"
+      ],
+      "tags": ["internal-write", "dedup-table", "multi-step"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Content-addressed write",
+      "trigger": "Writing a file, blob, or message whose identity *is* its content (build artifact, immutable record, derived data).",
+      "action": "Compute `key = sha256(canonical_content)`; write to `PUT /bucket/{key}`. S3 conditional put (`If-None-Match: *`) returns 412 on the second write.",
+      "output": "Repeated writes are no-ops (same key -> same content). No dedup table needed.",
+      "evidence": [
+        "[aws/s3-conditional] https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html"
+      ],
+      "tags": ["internal-write", "content-addressed", "immutable"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Database INSERT … ON CONFLICT … DO NOTHING",
+      "trigger": "The side effect is a single-row insert into a table you own (audit log, message record, user-generated record).",
+      "action": "Add a unique constraint on `(idempotency_key)` or `(user_id, intent, request_id)`. Use `INSERT … ON CONFLICT(idempotency_key) DO NOTHING RETURNING id`.",
+      "output": "Empty result set means 'duplicate, no-op'. Non-empty means 'first call, inserted'.",
+      "evidence": [
+        "[pg/insert] https://www.postgresql.org/docs/current/sql-insert.html#SQL-ON-CONFLICT"
+      ],
+      "tags": ["internal-write", "single-row", "atomic"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Saga / compensation for non-idempotent compensatable APIs",
+      "trigger": "The downstream system has no idempotency API but the effect can be undone (refund, retraction, correction email).",
+      "action": "1) Record intent with `status='pending', key=<id>` in a transaction. 2) Call the external API. 3) Update to `status='completed', external_id=<their_id>`. 4) On retry with status='completed': return stored `external_id`, do not call again. 5) On retry with status='pending': wait+poll, do not call. 6) Reconciliation job investigates pending rows past TTL.",
+      "output": "At-most-once semantics with a recovery path.",
+      "evidence": [
+        "[microservices/saga] https://microservices.io/patterns/data/saga.html",
+        "[temporal/idempotency] https://docs.temporal.io/develop/activities#idempotency"
+      ],
+      "tags": ["compensatable", "saga", "reconciliation"]
+    },
+    {
+      "id": "OP-6",
+      "name": "LangGraph: pull key from state before interrupt()",
+      "trigger": "A LangGraph node both calls `interrupt()` and performs a side effect.",
+      "action": "Derive a stable key BEFORE the interrupt: `key = state.get(\"email_key\") or str(uuid4())`; persist via reducer; call `interrupt(...)`; on approval, perform the side effect passing `idempotency_key=key`.",
+      "output": "Resume re-runs the node body but the key is stable, so the external send is a no-op on the second pass.",
+      "evidence": [
+        "[langgraph/gotchas] https://sumanmichael.github.io/langgraph-cheatsheet/cheatsheet/faqs-gotchas/",
+        "output/langgraph-sop-skill/SKILL.md Case 4 (payment double-charge)"
+      ],
+      "tags": ["langgraph", "hitl", "state-key", "resume"]
+    },
+    {
+      "id": "OP-7",
+      "name": "MCP / tool-boundary dedup window",
+      "trigger": "MCP server exposing a side-effectful tool to a client that may retry on transport timeout.",
+      "action": "Accept an `idempotency_key` argument in the tool schema; require it for side-effectful tools. Maintain a server-side dedup window (e.g. 5-minute in-memory LRU + persistent backing for cross-restart safety).",
+      "output": "Transport-level retries hit the dedup cache; only one execution.",
+      "evidence": [
+        "MCP spec does not mandate idempotency; server responsibility, analogous to Stripe server-side dedup [stripe/idempotency]"
+      ],
+      "tags": ["mcp", "tool-schema", "dedup-window", "server-side"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Pre-call state checkpoint (any framework)",
+      "trigger": "Working in a framework without first-class durable execution (plain Python loop, CrewAI task, custom orchestrator).",
+      "action": "Before calling a side-effectful tool, persist `(intent_id, args_hash, key, status='in_progress')` to sqlite or a durable store. After the call, update to `status='completed'` with the result. Wrap in a context manager so a crash leaves `in_progress`, and a retry reads that state and either polls or fails closed.",
+      "output": "At-most-once across process crashes, not just within-process.",
+      "evidence": [
+        "Generalisation of OP-5; equivalent to Temporal activity-level idempotency [temporal/idempotency]"
+      ],
+      "tags": ["framework-agnostic", "checkpoint", "crash-safety", "crewai"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "Case-1",
+      "title": "LangGraph node body re-runs on resume, sending two emails",
+      "source": "[langgraph/gotchas]; output/langgraph-sop-skill/SKILL.md Case 4",
+      "extracted_operations": ["OP-4", "OP-6"]
+    },
+    {
+      "id": "Case-2",
+      "title": "User says 'send the email to Alice' twice — block or allow?",
+      "source": "SKILL.md §5 Case 2 (intent-vs-content keying)",
+      "extracted_operations": ["OP-1", "OP-4"]
+    },
+    {
+      "id": "Case-3",
+      "title": "Agent retries with new args after timeout — same key, conflict (409)",
+      "source": "[stripe/idempotency] idempotency_key_in_use",
+      "extracted_operations": ["OP-1"]
+    },
+    {
+      "id": "Case-4",
+      "title": "MCP tool, transport retries, no idempotency in the protocol",
+      "source": "SKILL.md §5 Case 4",
+      "extracted_operations": ["OP-7", "OP-8"]
+    }
+  ],
+  "key_generation_strategies": [
+    {"source": "uuid4() in agent state, persisted before call", "use": "Default for one-shot operations", "pitfall": "Lost if state isn't persisted before the side effect"},
+    {"source": "hash(user_id, intent, day)", "use": "Per-user-per-intent-per-day (daily digest)", "pitfall": "Too coarse -> blocks legitimate second sends"},
+    {"source": "hash(canonicalized_args)", "use": "Content-determined", "pitfall": "Blocks legitimate 're-send same message later'"},
+    {"source": "hash(thread_id, node_id, run_id)", "use": "LangGraph node-level dedup", "pitfall": "Doesn't help across thread resumes re-entering the same node"},
+    {"source": "hash(thread_id, node_id, attempt_args)", "use": "Recommended for LangGraph resumable node bodies", "pitfall": "One more arg to wire"}
+  ]
+}

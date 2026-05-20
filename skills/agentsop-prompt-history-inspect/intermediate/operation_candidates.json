@@ -1,0 +1,147 @@
+{
+  "skill": "prompt-history-inspect",
+  "version": "0.1.0",
+  "research_date": "2026-05-19",
+  "axiom": "The prompt you wrote is not the prompt the model received. Inspect the rendered final prompt before any other debug move.",
+  "operations": [
+    {
+      "id": "op-001",
+      "category": "framework_inspect",
+      "framework": "dspy",
+      "trigger": "DSPy Predict/ChainOfThought/ReAct returned wrong output OR compile run hung mid-trial",
+      "action": "Call dspy.inspect_history(n=1) (or lm.inspect_history(n=3) for a specific LM instance)",
+      "output": "Last N LM invocations printed as system/user/assistant blocks plus raw response",
+      "limitations": "LM calls only; not retrievers/tools/subgraphs. Layer with mlflow.dspy.autolog for full pipeline.",
+      "evidence": ["dspy.ai/api/utils/inspect_history/", "dspy.ai/tutorials/observability/", "github.com/stanfordnlp/dspy/issues/784"]
+    },
+    {
+      "id": "op-002",
+      "category": "framework_inspect",
+      "framework": "langchain",
+      "trigger": "LangChain chain/agent produced unexpected output and need full prompt+response visibility",
+      "action": "from langchain.globals import set_debug, set_verbose; set_debug(True) (max) or set_verbose(True) (lighter)",
+      "output": "Console-printed prompt/response for every LM call in process",
+      "limitations": "Process-global scope; per-call alternative is StdOutCallbackHandler in callbacks=. Layer 2 view only; combine with OPENAI_LOG=debug for Layer 3.",
+      "evidence": ["python.langchain.com/api_reference/core/globals/langchain_core.globals.set_debug.html", "python.langchain.com/api_reference/langchain/globals/langchain.globals.set_verbose.html", "python.langchain.com/v0.1/docs/guides/development/debugging/"]
+    },
+    {
+      "id": "op-003",
+      "category": "framework_inspect",
+      "framework": "langgraph",
+      "trigger": "LangGraph thread produced wrong final answer; need per-step state including LM input at step k",
+      "action": "list(graph.get_state_history(config)) to read state per checkpoint; optionally graph.update_state + graph.invoke(None, config={'checkpoint_id': ...}) to fork",
+      "output": "StateSnapshot list with values (messages = LM input), config, next, metadata",
+      "limitations": "Requires a checkpointer configured. invoke(None, config=...) re-executes nodes — LM calls and tools fire again and pay cost. Reading history is free.",
+      "evidence": ["langchain-ai.github.io/langgraph/concepts/time-travel/", "docs.langchain.com/oss/python/langgraph/use-time-travel"]
+    },
+    {
+      "id": "op-004",
+      "category": "framework_inspect",
+      "framework": "crewai",
+      "trigger": "CrewAI agent picked wrong tool / looped / wrong output; need per-step visibility",
+      "action": "Agent(..., verbose=True, step_callback=fn) and Crew(..., verbose=True). fn receives AgentAction or AgentFinish per step.",
+      "output": "Verbose: narrative thoughts + tool I/O + final answer. step_callback: structured AgentAction objects.",
+      "limitations": "CrewAI internal log is thin; production needs Langtrace/OpenLIT/AgentOps/MLflow autolog in addition.",
+      "evidence": ["docs.crewai.com/en/concepts/agents", "docs.crewai.com/en/observability/overview"]
+    },
+    {
+      "id": "op-005",
+      "category": "framework_inspect",
+      "framework": "aider",
+      "trigger": "Aider applied wrong edit / mis-identified files / behaved unexpectedly",
+      "action": "/diff (last turn diff), /tokens (budget breakdown), /ls (file set), /map (repo-map). CLI: aider --verbose for full rendered prompt.",
+      "output": "Per-turn diff, token allocation, file membership, full prompt (verbose mode).",
+      "limitations": "Aider auto-commits — git diff HEAD~1 also works. Verbose is voluminous; pipe to file.",
+      "evidence": ["aider.chat/docs/usage/commands.html"]
+    },
+    {
+      "id": "op-006",
+      "category": "sdk_inspect",
+      "framework": "openai-sdk",
+      "trigger": "Calling client.chat.completions.create directly; response is wrong; no framework templating layer",
+      "action": "export OPENAI_LOG=debug (or =info). Sets stdlib logging level inside the SDK.",
+      "output": "Stderr: HTTP method, URL, headers, request body, response status, response body.",
+      "security_caveat": "CRITICAL: at debug level, the Authorization header (API key) is logged in plaintext. Strip before sharing; never commit debug logs.",
+      "evidence": ["github.com/openai/openai-python", "github.com/openai/openai-python/issues/1196", "github.com/openai/openai-python/issues/1082"]
+    },
+    {
+      "id": "op-006b",
+      "category": "sdk_inspect",
+      "framework": "anthropic-sdk",
+      "trigger": "Calling client.messages.create directly; response is wrong",
+      "action": "export ANTHROPIC_LOG=debug (or =info)",
+      "output": "Same shape as op-006 — stderr request/response logging.",
+      "security_caveat": "Same API-key-leak warning as OPENAI_LOG=debug.",
+      "evidence": ["github.com/anthropics/anthropic-sdk-python"]
+    },
+    {
+      "id": "op-007",
+      "category": "sdk_inspect_clean",
+      "framework": "openai-sdk OR anthropic-sdk",
+      "trigger": "Need full raw HTTP request body without OPENAI_LOG noise / API-key leak / formatting issues",
+      "action": "Pass custom httpx.Client with event_hooks={'request': [log_fn]} to the SDK via http_client= parameter",
+      "output": "Clean structured JSON dump of every request body; no key leakage unless you log headers.",
+      "limitations": "Response body in event hook needs resp.read() first.",
+      "evidence": ["til.simonwillison.net/httpx/openai-log-requests-responses", "github.com/encode/httpx/discussions/3073"]
+    },
+    {
+      "id": "op-008",
+      "category": "analysis",
+      "framework": "any",
+      "trigger": "Token/latency spike after adding tools; model 'got dumber'; context-window error before real input",
+      "action": "Dump prompt (op-001 to op-007); count tokens in tool-definitions block alone",
+      "output": "Concrete token cost per tool; identification of compression candidates",
+      "fix_options": "Compress tool descriptions; drop verbose enum lists; lazy-load tools by routing",
+      "evidence": ["github.com/microsoft/semantic-kernel/discussions/1239"]
+    },
+    {
+      "id": "op-009",
+      "category": "production_inspect",
+      "framework": "langsmith | langfuse | phoenix | mlflow",
+      "trigger": "Production bug; no local repro; need to inspect a real user thread",
+      "action": "Open the trace UI for the configured platform; navigate to the failing run; click into the LM call; view rendered prompt and response",
+      "output": "Production prompt/response ready for diff against expectation",
+      "evidence": ["per-platform skill (langsmith, phoenix, langfuse)"]
+    },
+    {
+      "id": "op-010",
+      "category": "regression",
+      "framework": "any",
+      "trigger": "Found bad rendered prompt; need reproduction + regression test",
+      "action": "Save dumped prompt to tests/fixtures/prompt-bug-<id>.txt; add assertion that future renders do not contain the bad pattern",
+      "output": "Snapshot-style regression test that pins prompt rendering, not just model output",
+      "evidence": ["snapshot-testing pattern (general)"]
+    }
+  ],
+  "anti_patterns": [
+    "Changing the prompt before inspecting it (#1 mistake)",
+    "Trusting source code matches what was sent",
+    "Inspecting at PromptTemplate.format level instead of SDK/HTTPX wire level",
+    "Leaving set_debug(True) or OPENAI_LOG=debug on in production",
+    "Replaying production threads via graph.invoke(None, config=...) — re-pays LM cost",
+    "Inspecting only the prompt, ignoring the response (truncation/refusal lives in response)",
+    "Using inspect_history as only observability for multi-component pipelines",
+    "Eyeballing long prompts instead of diffing against known-good",
+    "Reasoning about why the prompt is 'fine' without re-rendering after each change",
+    "Sharing a debug log without scrubbing API keys"
+  ],
+  "boundaries": [
+    "Pre-call errors (import/auth/network) — nothing to inspect, fix infra first",
+    "Prompt authoring from scratch — no rendered prompt exists yet",
+    "Eval-time aggregate metrics — wrong granularity, use eval/langsmith",
+    "Streaming-only debugging — framework streaming hooks better than post-hoc inspect",
+    "Already have trace UI configured — SOP applies, action becomes 'open the trace'"
+  ],
+  "cross_framework_first_move": {
+    "dspy": "dspy.inspect_history(n=1)",
+    "langchain": "from langchain.globals import set_debug; set_debug(True)",
+    "langgraph": "list(graph.get_state_history(config))",
+    "crewai": "Agent(..., verbose=True, step_callback=fn)",
+    "llamaindex": "Settings.callback_manager = CallbackManager([LlamaDebugHandler(print_trace_on_end=True)])",
+    "aider": "/diff  +  aider --verbose",
+    "openai_sdk": "export OPENAI_LOG=debug",
+    "anthropic_sdk": "export ANTHROPIC_LOG=debug",
+    "clean_dump_any_sdk": "httpx.Client(event_hooks={'request': [log_fn]}) passed via http_client=",
+    "production_trace": "Open run in LangSmith / LangFuse / Phoenix / MLflow"
+  }
+}

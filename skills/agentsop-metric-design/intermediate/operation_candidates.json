@@ -1,0 +1,96 @@
+{
+  "skill": "metric-design",
+  "version": "0.1.0",
+  "phase": "D",
+  "tier": "core",
+  "status": "opinionated",
+  "summary": "Decomposed, multi-criteria metric design for LLM pipelines. The metric IS the optimization target: decompose holistic judges into orthogonal yes/no sub-judges, return bool during compile and float during eval, bake length in deterministically, use a cross-family judge, mitigate judge bias, and human-calibrate (>=20 spot-checks) before any compile. Source basis: dspy-sop Case C + ops op-004/op-024/op-030; llamaindex-sop OP-10 evaluator triad; judge-bias research [arxiv.org/pdf/2506.02592, arxiv.org/pdf/2509.26072].",
+  "operations": [
+    {
+      "id": "OP-M01",
+      "name": "DecomposeMultiCriteria",
+      "trigger": "Open-ended generation; multiple correctness axes (factuality + tone + length + relevance).",
+      "action": "List 3-6 orthogonal yes/no sub-criteria. One dspy.Predict(Assess) call per criterion. Aggregate with AND (hard gates) + weighted sum (soft preferences).",
+      "output": "Multi-judge metric callable; one criterion per call.",
+      "evidence": "[dspy.ai/learn/evaluation/metrics/]; dspy-sop Case C step 2; LlamaIndex Faithfulness+Relevancy+Retriever triad."
+    },
+    {
+      "id": "OP-M02",
+      "name": "BoolDuringCompileFloatDuringEval",
+      "trigger": "Writing any metric used for both compile (teleprompt.compile) and dspy.Evaluate.",
+      "action": "Inside the metric, if trace is not None: return bool_aggregate; else: return float_aggregate.",
+      "output": "One metric function, two modes; optimizer avoids chasing float noise.",
+      "evidence": "[dspy.ai/learn/evaluation/metrics/]; [dspy.ai/cheatsheet/]; dspy-sop op-030 (cited as OP-030 in SKILL.md)."
+    },
+    {
+      "id": "OP-M03",
+      "name": "ExplicitLengthPenalty",
+      "trigger": "Any LLM-as-judge metric (always).",
+      "action": "Add a deterministic scalar length_score = clip(1 - max(0, len - budget) / budget, 0, 1) multiplied into the final float. Do NOT delegate length judgment to the LLM.",
+      "output": "Length-controlled metric immune to the judge's length bias.",
+      "evidence": "[arxiv.org/pdf/2506.02592]; dspy-sop Case C step 6 ('Add a length penalty as a separate scalar')."
+    },
+    {
+      "id": "OP-M04",
+      "name": "CrossFamilyJudge",
+      "trigger": "Judge model is in the same family as the task model (e.g., both GPT-4).",
+      "action": "Swap the judge to a different family (Claude, Llama, Gemini, Mistral). Document the choice.",
+      "output": "Self-preference bias mitigated.",
+      "evidence": "[arxiv.org/pdf/2506.02592]; dspy-sop Case C step 1."
+    },
+    {
+      "id": "OP-M05",
+      "name": "HumanSpotCheck20",
+      "trigger": "Before any compile / production rollout of a new or modified metric.",
+      "action": "20 (open-ended: 30) human ratings on the same sub-criteria. Compute per-sub-judge and aggregate agreement. Reject if <80% per-sub or aggregate; fix the metric before compiling.",
+      "output": "Calibration receipt; metric is human-validated.",
+      "evidence": "dspy-sop Case C step 4 ('Spot-check the metric on 20 examples ... If sub-judges disagree with human on >20% of cases, fix the metric before compiling'); [dspy.ai/learn/evaluation/metrics/]. NOTE: '30 if open-ended' and the >=80% bar are SKILL.md tightenings of the DSPy '20 / >20%' source."
+    },
+    {
+      "id": "OP-M06",
+      "name": "RAGFaithfulnessRelevancyContext",
+      "trigger": "RAG pipeline; tuning chunk size / reranker / retriever-k / hybrid alpha.",
+      "action": "Instantiate three evaluators: FaithfulnessEvaluator (answer entailed by retrieved context), RelevancyEvaluator (answer addresses query), RetrieverEvaluator(['mrr','hit_rate']) (does retrieval pull the gold passage). Gate every PR.",
+      "output": "3-axis RAG quality vector; never a single number.",
+      "evidence": "LlamaIndex OP-10 EvalLoop ('FaithfulnessEvaluator + RelevancyEvaluator + RetrieverEvaluator([\"mrr\",\"hit_rate\"]). Gate every change'); [developers.llamaindex.ai/python/framework-api-reference/evaluation/]."
+    },
+    {
+      "id": "OP-M07",
+      "name": "BiasProbeSuite",
+      "trigger": "Before calibration.",
+      "action": "Run length-probe, self-preference probe, position probe, rubric-order probe (Stage 4) on a 20-example dev set. Log deltas.",
+      "output": "Bias-probe report; rejected if length probe >=+5pp on padded answers or position flips >10%.",
+      "evidence": "[arxiv.org/pdf/2509.26072]; [arxiv.org/pdf/2506.02592]. Probe thresholds (+5pp, >10%) are SKILL.md author-chosen operationalizations."
+    },
+    {
+      "id": "OP-M08",
+      "name": "TextualFeedbackForGEPA",
+      "trigger": "Sub-judge can articulate why it failed (e.g., 'answer was verbose', 'missed cited source').",
+      "action": "Return dspy.Prediction(score=float, feedback=str) from the metric. Pair with dspy.GEPA optimizer (not MIPROv2).",
+      "output": "Sample-efficient, reflection-evolved prompts.",
+      "evidence": "[dspy.ai/api/optimizers/GEPA/overview/]; [arxiv.org/abs/2507.19457]; dspy-sop op-004 (cited as OP-004 in SKILL.md); Case C step 5 (10-13% lift over MIPROv2 on AIME-style benchmarks)."
+    },
+    {
+      "id": "OP-M09",
+      "name": "RandomizeJudgeOrder",
+      "trigger": "Pairwise judge or rubric with N>3 criteria.",
+      "action": "Per-call: randomize A/B order in pairwise; randomize sub-judge ordering. Or run both and average.",
+      "output": "Position and rubric-order bias mitigated.",
+      "evidence": "[arxiv.org/pdf/2509.26072]."
+    },
+    {
+      "id": "OP-M10",
+      "name": "CalibrationReceipt",
+      "trigger": "Ship a compiled artifact.",
+      "action": "Save JSON next to the artifact: {metric_version, n_spot_checks, per_judge_agreement, bias_probe_results, judge_model_id, task_model_id, date, criteria_list}.",
+      "output": "Audit-ready provenance for the metric used to compile.",
+      "evidence": "General audit best-practice; DSPy save(save_program=True) analog [dspy.ai/tutorials/saving/]. Receipt schema is SKILL.md author-defined."
+    }
+  ],
+  "research_caveats": [
+    "DSPy operation IDs are cited upper-case in SKILL.md (OP-030, OP-024, OP-004) but are lower-case in the dspy-sop source (op-030, op-024, op-004). Operations map 1:1; only casing differs.",
+    "The >=80% agreement threshold and '30 if open-ended' spot-check count tighten DSPy's documented '20 examples / >20% disagreement' bar.",
+    "Bias-probe numeric thresholds (+5pp length, >10% position flip, >5pp rubric-order) are author-chosen operationalizations, not figures from the cited bias papers.",
+    "Dilemma 3 (cekura-metric-design, '11 installs') and all numeric outcomes inside the three Dilemmas are illustrative scenario figures, not measured results."
+  ]
+}

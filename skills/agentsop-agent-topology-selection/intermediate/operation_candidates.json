@@ -1,0 +1,147 @@
+{
+  "skill": "agent-topology-selection",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "phase": "D-enhance",
+  "gap_id": "O6",
+  "cross_links": ["crewai", "langgraph", "bounded-loop"],
+  "one_sentence": "Most 'multi-agent' problems are single-agent + tools; add agents only when context isolation or parallel expertise demands it, then pick supervisor / swarm / sequential / hierarchical via two binary questions (do agents know each other? must output be one voice?).",
+  "rubric": {
+    "Q0": "Is single-agent + tools enough? YES -> single-agent, STOP.",
+    "Q1": "Do agents need to know about each other? NO -> supervisor (or sequential if order fixed).",
+    "Q2": "Must output speak with one voice / single audit funnel? YES -> supervisor; NO -> swarm.",
+    "scaling_override": ">=6 specialists grouping into teams -> hierarchical (grouping only, NOT routing)."
+  },
+  "key_nuance": "LangGraph's own benchmark: swarm slightly beats supervisor on accuracy AND uses fewer tokens, yet supervisor is the shipped default. The default encodes third-party-agent safety (single audit funnel), not accuracy. Do not copy the default blindly.",
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "DefendSingleAgentBaseline",
+      "trigger": "A task is being framed as 'a team of agents'.",
+      "action": [
+        "List the proposed roles.",
+        "For each role, name the concrete failure that merging into one agent would cause (style drift / missed checklist / context bloat / required parallelism).",
+        "No nameable failure => single agent + tools."
+      ],
+      "output": "single-agent + tools, OR a justified list of must-split roles.",
+      "evidence": ["crewai: DC-1 (~80% single-agent)", "langgraph: Step 1 / anti-patterns (over-graphing is #1 anti-pattern)"]
+    },
+    {
+      "id": "OP-2",
+      "name": "SingleVsMultiGate",
+      "trigger": "Baseline defended; at least one role has a real split-justifying failure.",
+      "action": [
+        "Confirm the force is context isolation or parallel expertise, not 'sounds more capable'.",
+        "If only the latter, stay single."
+      ],
+      "output": "Yes/no on multi-agent with the force named in one sentence.",
+      "evidence": ["crewai: §2.2 Phase 1.1 (one agent doing two jobs degrades)", "crewai: DC-1"]
+    },
+    {
+      "id": "OP-3",
+      "name": "StaticOrderGate",
+      "trigger": "Multi-agent confirmed; order of work fixed at design time.",
+      "action": [
+        "Choose SEQUENTIAL.",
+        "List agents in execution order.",
+        "Pass dependencies explicitly (CrewAI context=[...]); do not rely on implicit transfer."
+      ],
+      "output": "Ordered task list; CrewAI Process.sequential or LangGraph static edges.",
+      "evidence": ["crewai: §2.3 (sequential = 1x tokens, low debug cost)"]
+    },
+    {
+      "id": "OP-4",
+      "name": "PeerAwarenessGate",
+      "trigger": "Routing must be decided at runtime.",
+      "action": [
+        "Ask: do sub-agents know about each other?",
+        "NO => supervisor branch; YES => continue to OP-5."
+      ],
+      "output": "Chosen branch (supervisor vs swarm).",
+      "evidence": ["langgraph: Step 4 decision tree"]
+    },
+    {
+      "id": "OP-5",
+      "name": "SingleVoiceGate",
+      "trigger": "Peers know each other (Q1=YES).",
+      "action": [
+        "Ask: must output be one voice / single audit funnel?",
+        "YES => SUPERVISOR; NO => SWARM."
+      ],
+      "output": "SUPERVISOR or SWARM.",
+      "evidence": ["langgraph: Case 2 (compliance->supervisor; UX continuity->swarm)"]
+    },
+    {
+      "id": "OP-6",
+      "name": "ApplySupervisorDefaultCaveat",
+      "trigger": "Supervisor selected, OR about to accept a framework default.",
+      "action": [
+        "Check trust: third-party/untrusted agents => supervisor is correct.",
+        "Internal/trusted => re-test whether swarm's lower token cost wins; if so, switch."
+      ],
+      "output": "Topology chosen on trust + the two questions, not on the default.",
+      "evidence": ["langgraph: Step 4 (swarm beats supervisor on bench, supervisor default for third-party safety)"]
+    },
+    {
+      "id": "OP-7",
+      "name": "TuneBeforeSwitch",
+      "trigger": "Chosen topology over token/latency budget.",
+      "action": [
+        "Apply published fixes to current topology first.",
+        "Supervisor: remove handoff messages, add forwarding-messages tool, optimise tool naming (~50% measured improvement).",
+        "Switch paradigm only if still over budget."
+      ],
+      "output": "Tuned topology or a justified migration.",
+      "evidence": ["langgraph: Step 4 / Case 2 (nearly 50% increase)"]
+    },
+    {
+      "id": "OP-8",
+      "name": "BoundTheTopology",
+      "trigger": "Any runtime-handoff topology before ship.",
+      "action": [
+        "allow_delegation=False on workers.",
+        "Per-agent max_iter; outer timeout.",
+        "Explicit state-based exit counter; trust nothing the LLM does to terminate."
+      ],
+      "output": "A topology that provably terminates.",
+      "evidence": ["crewai: DC-5 (delegation ping-pong)", "bounded-loop overlay", "langgraph: OP-9 / Case 1"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "title": "Swarm beats supervisor on the benchmark, yet ship supervisor",
+      "tension": "LangChain's own benchmark: swarm slightly outperforms supervisor and uses fewer tokens, but supervisor is the recommended default.",
+      "resolution": "Decode the default's reason (third-party-agent safety + single audit funnel), not the default. Internal trusted agents with no single-voice mandate -> swarm. Single auditable funnel -> keep supervisor, apply the 3 fixes (~50%) before declaring it slow.",
+      "extracted_op": "OP-6: a framework default encodes the author's worst-case constraint, not yours."
+    },
+    {
+      "id": "DC-2",
+      "title": "CrewAI hierarchical is structurally broken for simple routing",
+      "tension": "Process.hierarchical looks like it auto-routes, but the manager executes ALL tasks and the last output overwrites; it does not skip on triage.",
+      "resolution": "Hierarchical is coordination, not routing. ~5-line routing -> CrewAI Flow @router/@listen or LangGraph conditional edge. LLM-semantic routing -> custom manager_agent, never bare manager_llm. Bound it.",
+      "extracted_op": "Hierarchical != router. Routing is control flow; make it explicit."
+    }
+  ],
+  "anti_patterns": [
+    "Multi-agent theater (splitting with no context-isolation/parallel-expertise force).",
+    "Hierarchical / supervisor for simple if/else routing (runs everything).",
+    "Copying the supervisor default blindly (benchmark favours swarm for internal agents).",
+    "Agent-count explosion (>5 -> coordination failure; >=6 group into teams).",
+    "Unbounded delegation (allow_delegation=True everywhere -> ping-pong).",
+    "Picking topology on aesthetics instead of the two binary questions."
+  ],
+  "cross_framework_map": {
+    "single_agent_tools": {"crewai": "one Agent + tools (skip Crew)", "langgraph": "create_react_agent", "openai_swarm": "one routine"},
+    "sequential": {"crewai": "Process.sequential + context=[...]", "langgraph": "static edges A->B->C", "openai_swarm": "linear handoffs"},
+    "supervisor": {"crewai": "Process.hierarchical + custom manager_agent", "langgraph": "supervisor pattern (sub-agents as tools)", "openai_swarm": "central routine dispatching"},
+    "swarm": {"crewai": "none native (Flow + handoff funcs)", "langgraph": "swarm pattern (dynamic handoff)", "openai_swarm": "handoff between agents"},
+    "hierarchical_teams": {"crewai": "nested crews via Flow", "langgraph": "supervisor-of-supervisors / subgraphs", "openai_swarm": "n/a"}
+  },
+  "source_skills": [
+    "/Users/5imp1ex/Desktop/Skill-Workplace/output/crewai-sop-skill/SKILL.md",
+    "/Users/5imp1ex/Desktop/Skill-Workplace/output/langgraph-sop-skill/SKILL.md",
+    "~/.claude/skills/crewai/SKILL.md"
+  ]
+}
