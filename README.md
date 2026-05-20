@@ -1,6 +1,6 @@
 <div align="center">
 
-# Skill-Alchemy
+# SkillAlchemy
 
 <br>
 <em style="font-size: 20px;">一念落地，万象成形</em>
@@ -15,6 +15,7 @@
   <a href="#它能做什么">它能做什么</a> ·
   <a href="#效果">效果</a> ·
   <a href="#参数">参数</a> ·
+  <a href="#已蒸馏的-skill">已蒸馏 Skill</a> ·
   <a href="#边界">边界</a> ·
   <a href="#我们的野心">野心</a> ·
   <a href="技术文档.md">技术文档</a>
@@ -32,7 +33,7 @@
 把下面这句话发给 Claude Code（或者 Codex）：
 
 ```
-请你帮我从 https://github.com/Whj9283/SkillAlchemy 拉取这个 skill 到本地，安装到 Claude Code 的 skills 里，然后告诉我怎么用。
+请你帮我从 https://github.com/agentsope/SkillAlchemy 拉取这个 skill 到本地，安装到 Claude Code 的 skills 里，然后告诉我怎么用。
 ```
 
 Agent 会自动完成安装。装好之后，你就可以这样用：
@@ -46,7 +47,7 @@ Agent 会自动完成安装。装好之后，你就可以这样用：
 也可以走命令行：
 
 ```bash
-npx skills add Whj9283/Skill-Alchemy
+npx skills add agentsope/SkillAlchemy
 ```
 
 ---
@@ -108,6 +109,34 @@ npx skills add Whj9283/Skill-Alchemy
 
 ---
 
+## 已蒸馏的 Skill
+
+仓库 `skills/` 目录下蕴含了大量蒸馏好的 Skill，覆盖主流 AI Agent 框架、工具和工作流。你不需要从头蒸馏——直接安装就能用。
+
+**安装方式一：命令行**
+
+```bash
+npx skills add agentsope/SkillAlchemy/skills/<skill-name>
+```
+
+**安装方式二：自然语言**
+
+把下面这句话发给 Claude Code（或者 Codex）：
+
+```
+请帮我从 https://github.com/agentsope/SkillAlchemy 安装 <skill名称> 到本地
+```
+
+比如装 Lens：
+
+```
+请帮我从 https://github.com/agentsope/SkillAlchemy 安装 Lens 到本地
+```
+
+所有可用 Skill 见 [`skills/`](skills/) 目录。
+
+---
+
 ## 边界
 
 不适合资料稀缺的人物复刻——别指望三条新闻就召唤出一个完整的人格。不适合私密人格杜撰——公开资料里没有的内心戏，系统不替人加戏。不适合高风险专业决策——真要签字背锅时，你比所有「乔布斯们」更有用。不适合版权内容改写复用——换个发型不等于换了个人，洗稿也不等于原创。
@@ -131,5 +160,5 @@ Skill-Alchemy 要做的，就是把 source 背后的判断规则、执行步骤�
   <em style="font-size: 20px;">一念落地，万象成形</em>
   <br>
   <br>
-  MIT License © <a href="https://github.com/Whj9283">Whj9283</a>
+  MIT License © <a href="https://github.com/agentsope">agentsope</a>
 </div>

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Skill-Alchemy
+# SkillAlchemy
 
 <br>
 <em style="font-size: 20px;">One thought conceived, one goal achieved</em>
@@ -15,6 +15,7 @@
   <a href="#what-it-does">What It Does</a> ·
   <a href="#example">Example</a> ·
   <a href="#parameters">Parameters</a> ·
+  <a href="#distilled-skills">Distilled Skills</a> ·
   <a href="#boundaries">Boundaries</a> ·
   <a href="#our-ambition">Ambition</a>
 </p>
@@ -31,7 +32,7 @@
 Send this to Claude Code (or Codex):
 
 ```
-Please pull the skill from https://github.com/Whj9283/Skill-Alchemy and install it into my Claude Code skills, then tell me how to use it.
+Please pull the skill from https://github.com/agentsope/SkillAlchemy and install it into my Claude Code skills, then tell me how to use it.
 ```
 
 The Agent will handle the installation. Once installed:
@@ -45,7 +46,7 @@ Help me analyze what I should consider for "building an AI customer service prod
 Or via command line:
 
 ```bash
-npx skills add Whj9283/Skill-Alchemy
+npx skills add agentsope/SkillAlchemy
 ```
 
 ---
@@ -107,6 +108,34 @@ Feel free to ask any question.
 
 ---
 
+## Distilled Skills
+
+The `skills/` directory contains a rich collection of pre-distilled Skills covering major AI Agent frameworks, tools, and workflows. No need to distill from scratch — install and use immediately.
+
+**Method 1: Command line**
+
+```bash
+npx skills add agentsope/SkillAlchemy/skills/<skill-name>
+```
+
+**Method 2: Natural language**
+
+Send this to Claude Code (or Codex):
+
+```
+Please install <skill-name> from https://github.com/agentsope/SkillAlchemy for me
+```
+
+For example, to install Lens:
+
+```
+Please install Lens from https://github.com/agentsope/SkillAlchemy for me
+```
+
+See [`skills/`](skills/) for all available Skills.
+
+---
+
 ## Boundaries
 
 Not suitable for recreating people with scarce source material. Don't expect three news articles to summon a full persona. Not suitable for inventing private personalities — if public material doesn't contain the inner drama, we don't add it. Not suitable for high-risk professional decisions — when someone needs to sign and bear responsibility, you're more useful than all the "Steve Jobses." Not suitable for rewriting copyrighted content — changing the hairstyle doesn't make it a different person.
@@ -130,5 +159,5 @@ Skill-Alchemy distills the judgment rules, execution steps, boundary conditions,
   <em style="font-size: 20px;">One thought conceived, one goal achieved</em>
   <br>
   <br>
-  MIT License © <a href="https://github.com/Whj9283">Whj9283</a>
+  MIT License © <a href="https://github.com/agentsope">agentsope</a>
 </div>

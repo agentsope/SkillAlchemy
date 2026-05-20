@@ -15,10 +15,22 @@ version: v1.0
 ## 前置检查
 
 ```
-ls ~/.claude/skills/lens/SKILL.md
-ls ~/.claude/skills/leap/SKILL.md
+ls ~/.claude/skills/Lens/SKILL.md
+ls ~/.claude/skills/LEAP/SKILL.md
 ```
-缺少则提示安装。
+
+**如果缺少任何一个，告诉用户：**
+
+> SkillAlchemy 需要两个依赖才能运行，请先安装：
+>
+> ```
+> npx skills add agentsope/SkillAlchemy/skills/Lens
+> npx skills add agentsope/SkillAlchemy/skills/LEAP
+> ```
+>
+> 或者去 https://skills.sh 搜索 Lens 和 LEAP 安装。
+>
+> 装好之后回来找我继续。
 
 ---
 
