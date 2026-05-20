@@ -16,7 +16,8 @@
   <a href="#效果">效果</a> ·
   <a href="#参数">参数</a> ·
   <a href="#边界">边界</a> ·
-  <a href="#我们的野心">野心</a>
+  <a href="#我们的野心">野心</a> ·
+  <a href="技术文档.md">技术文档</a>
 </p>
 
 <div align="center">
