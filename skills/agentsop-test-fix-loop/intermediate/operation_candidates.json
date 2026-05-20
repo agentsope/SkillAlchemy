@@ -1,0 +1,219 @@
+{
+  "$schema": "skill-operation-candidates/v1",
+  "skill": "test-fix-loop",
+  "version": "0.1.0",
+  "description": "Structured form of the 8 operations defined in SKILL.md §4. Each operation is a primitive a coder-agent can invoke. Trigger → Action → Output → Evidence. Designed for downstream skill-fusion: an aggregator skill can include these by id without re-distilling.",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "wire_one_shot_verifier",
+      "trigger": "User wants the agent to verify once after editing; no loop yet, but a success command exists.",
+      "action": "Run `<lint> && <type> && <test>` as one combined shell command. Capture three-tuple (stdout, stderr, exit_code). Set timeout (120s default) and NO_COLOR=1 in env.",
+      "output": "Pass/fail signal. If fail, raw output ready for distillation by OP-2.",
+      "evidence": [
+        "aider/lint-test: 'Aider will try and fix any errors if the command returns a non-zero exit code.'"
+      ],
+      "concrete_commands": {
+        "python": "ruff check . && mypy --strict src && pytest -x --tb=short",
+        "typescript": "eslint . && tsc --noEmit && vitest run --bail 1",
+        "go": "gofmt -l . | (! grep .) && go vet ./... && go test ./...",
+        "rust": "cargo fmt --check && cargo clippy -- -D warnings && cargo test"
+      },
+      "anti_patterns": [
+        "Running lint and test as separate loops (doubles iter cost)",
+        "Not setting NO_COLOR=1 (ANSI burns tokens)",
+        "No timeout (one infinite test halts the agent)"
+      ]
+    },
+    {
+      "id": "OP-2",
+      "name": "format_feedback_under_2k_tokens",
+      "trigger": "Verifier failed; about to construct the next prompt for the LM.",
+      "action": "Extract first failure block. Take last frame of traceback. Anchor to `git diff HEAD~1 --name-only -U0`. Strip ANSI, coverage summaries, deprecation warnings. Hard cap output at ~2000 tokens.",
+      "output": "A digest message of (a) failing item, (b) error class + message, (c) file:line, (d) anchor 'your last edit touched X', (e) optional one-line hypothesis.",
+      "evidence": [
+        "aider/edit-errors: 'Above about 25k tokens of context, most models start to become distracted.'",
+        "External 2025 SWE research: 'noise in tool results degrades patch quality more than model choice within a class.'"
+      ],
+      "per_verifier_recipes": "See references/R2-feedback-formatting-recipes.md",
+      "anti_patterns": [
+        "Dumping raw 4000-line pytest output",
+        "Dropping the file:line (model can't locate the bug)",
+        "Adding 'please fix this carefully' (imperatives hurt some models)",
+        "Concatenating stdout+stderr without labels"
+      ]
+    },
+    {
+      "id": "OP-3",
+      "name": "bound_loop_with_cap_and_stall_detector",
+      "trigger": "About to enter or continue a fix loop.",
+      "action": "Set MAX_ITERS (3-5 for interactive use; 50-100 for SWE-Bench batch). Track last error string; if exact-match repeats, break early (stall). Enforce total wall-clock cap as outer guard.",
+      "output": "A loop with explicit termination conditions, never `while True`. Returns one of: Success(iters=N), Stall(reason='same error twice'), Exhausted(max_iters=N), Timeout(seconds=N), EnvFailure(class).",
+      "evidence": [
+        "oh/6357: OpenHands SWE-Bench infinite-loop on context overflow (canonical failure case).",
+        "langgraph/recursion: 'Hitting recursion_limit indicates an underlying design flaw.'"
+      ],
+      "default_caps": {
+        "interactive_pair_programming": 3,
+        "ci_pre_pr": 5,
+        "swe_bench_eval": 50,
+        "long_running_refactor": 10
+      },
+      "anti_patterns": [
+        "No iter cap (`while True`)",
+        "Cap too high (10+ for interactive — burns money on stuck cases)",
+        "No stall detector (loops forever on same error)"
+      ]
+    },
+    {
+      "id": "OP-4",
+      "name": "commit_per_iteration",
+      "trigger": "Agent has applied an edit; before re-running verifier.",
+      "action": "`git add -A && git commit -m \"agent[iter N/M]: <one-line summary>\"`. Never `--amend`. If working tree has uncommitted user changes, stash first.",
+      "output": "A bisectable audit trail. Each iter is recoverable via `git reset --hard HEAD~K`.",
+      "evidence": [
+        "aider/git: per-edit auto-commit is on by default; --no-auto-commits disables /undo trail.",
+        "cline/auto-approve: per-step approval is the IDE analog of per-edit commit."
+      ],
+      "anti_patterns": [
+        "Using `--amend` between iters (loses bisect)",
+        "Disabling --auto-commits 'to keep history clean' (rebase post-loop instead)",
+        "Single commit at loop exit (no way to recover iter K if K+1 broke things)"
+      ]
+    },
+    {
+      "id": "OP-5",
+      "name": "detect_success_without_false_positives",
+      "trigger": "Verifier exits 0.",
+      "action": "Confirm three conditions: (a) tests were actually collected (e.g. pytest exit 5 ≠ success; check `pytest --collect-only -q | wc -l`), (b) no test was newly @skip/@xfail/disabled in the last iter's commit, (c) the verifier command itself does not contain `|| true` suppression. Run `git log -p -1 -- '*test*'` to check (b).",
+      "output": "Trusted 'green' signal, or 'suspicious_pass' tag with details for human review.",
+      "evidence": [
+        "pytest/exit-codes: exit 5 = 'no tests collected' = silent false positive.",
+        "Empirical: agents commonly 'pass' by adding @pytest.mark.skip or removing assertions."
+      ],
+      "anti_patterns": [
+        "Treating exit 0 as ground truth without diff check",
+        "Allowing `pytest -k <pattern>` in --test-cmd that might match zero tests",
+        "Running with `--continue-on-error` flags that mask failures"
+      ]
+    },
+    {
+      "id": "OP-6",
+      "name": "classify_and_escalate_env_failures",
+      "trigger": "Verifier output matches environment-failure patterns.",
+      "action": "Maintain a regex classifier. If matched AND the agent's edits don't touch the affected module, classify as `env_failure`. Do NOT re-prompt the LM. Exit loop with message: 'Verifier failed with what looks like an environment issue (<error>). Agent did not edit further. Please fix the env and re-run.' Allow ONE retry for flakes; twice = escalate.",
+      "output": "Loop exits to human; agent is not asked to fix `apt-get install` problems by editing source.",
+      "evidence": [
+        "swe-gym: SWE-Gym docs split infra-setup phase from agent-iteration phase.",
+        "Empirical: agents asked to fix `ModuleNotFoundError: psycopg2` for missing libpq will rewrite imports until codebase is broken."
+      ],
+      "env_patterns": [
+        "No module named",
+        "command not found",
+        "OSError: \\[Errno 28\\]",
+        "ConnectionRefusedError",
+        "libpq.so",
+        "libssl.so",
+        "Could not find a version that satisfies",
+        "EACCES",
+        "ENOSPC"
+      ],
+      "anti_patterns": [
+        "Re-prompting the LM with 'No module named X' (it will fake-fix imports)",
+        "No retry budget (flaky network = false escalation)",
+        "Too many retries (papers over real infra issues)"
+      ]
+    },
+    {
+      "id": "OP-7",
+      "name": "handle_partial_success",
+      "trigger": "8 of 10 failing tests now pass; 2 remain.",
+      "action": "Format feedback with explicit progress framing: 'Of N tests previously failing, K now pass. K' still fail; details below.' Then show only the K' remaining failures. Reset stall detector — different error class = real progress.",
+      "output": "Loop continues on smaller error surface; model is not punished for prior fixes.",
+      "evidence": [
+        "Empirical: models given 'you broke things' framing (without progress context) tend to revert good fixes.",
+        "Cognitive: anchoring to net delta keeps the model focused on remaining work."
+      ],
+      "anti_patterns": [
+        "Treating any non-zero exit as 'failure' (loses progress signal)",
+        "Listing all original failures every iter (model sees same errors despite fix)",
+        "Not resetting stall detector after progress (false stall break)"
+      ]
+    },
+    {
+      "id": "OP-8",
+      "name": "handle_auto_formatters_that_rewrite",
+      "trigger": "Verifier includes a formatter (`ruff format`, `prettier --write`, `gofmt -w`) that modifies files and returns non-zero on first pass.",
+      "action": "Wrap in a two-pass script: pass 1 writes/formats; pass 2 runs the same formatter in check-only mode for the actual verification signal. Only pass-2 exit code feeds the loop.",
+      "output": "Loop doesn't get stuck re-running the same successful format; spurious non-zero exits don't trigger LM edits.",
+      "evidence": [
+        "aider/lint-test: explicit guidance — 'formatters that rewrite files and return non-zero need a double-run wrapper.'"
+      ],
+      "wrapper_template": "#!/usr/bin/env bash\nset -e\nruff format .          # pass 1: write\nruff format --check .  # pass 2: verify (this is the signal)\n",
+      "anti_patterns": [
+        "Putting `ruff --fix` in --lint-cmd (the agent's edits compete with the fixer)",
+        "Single-pass formatter (loop interprets 'I changed files' as 'tests failed')"
+      ]
+    }
+  ],
+  "composition_notes": {
+    "minimal_loop": [
+      "OP-1 (wire verifier)",
+      "OP-2 (format feedback)",
+      "OP-3 (bound iterations)",
+      "OP-5 (detect success)"
+    ],
+    "production_loop": [
+      "OP-1",
+      "OP-2",
+      "OP-3",
+      "OP-4 (commit per iter)",
+      "OP-5",
+      "OP-6 (env classification)",
+      "OP-7 (partial success)",
+      "OP-8 (formatter wrapper)"
+    ],
+    "swe_bench_eval_loop": {
+      "ops": ["OP-1", "OP-2", "OP-3 (high MAX_ITERS)", "OP-4", "OP-5", "OP-6"],
+      "tweaks": "Higher iter cap (50-100); skip OP-7 (each instance is independent); env failures are graded as instance failure, not human-escalation."
+    }
+  },
+  "framework_bindings": {
+    "aider": {
+      "ops_handled_natively": ["OP-1", "OP-4", "OP-8 (with wrapper)"],
+      "ops_requiring_user_work": ["OP-2 (Aider passes raw output)", "OP-3 (no hard cap, 'sensible tries')", "OP-5 (no skip-detection)", "OP-6 (treats env errors as code errors)"],
+      "flags": "--auto-lint --lint-cmd '...' --auto-test --test-cmd '...' --auto-commits"
+    },
+    "openhands_swe_bench": {
+      "ops_handled_natively": ["OP-1", "OP-3 (max_iterations)", "OP-4 (per-instance diff)"],
+      "ops_requiring_user_work": ["OP-2", "OP-5", "OP-6", "OP-7"],
+      "known_bugs": ["#6357 infinite loop on context overflow (OP-3 + context-truncation interaction)"]
+    },
+    "cline": {
+      "ops_handled_natively": ["OP-4 (per-step approval as commit-analog)"],
+      "ops_requiring_user_work": ["OP-1 (allowlist setup)", "OP-2", "OP-3", "OP-5", "OP-6", "OP-7", "OP-8"]
+    },
+    "claude_code_bash_tool": {
+      "ops_handled_natively": [],
+      "ops_requiring_user_work": ["all"],
+      "note": "Naked Bash tool — full loop must be wrapped by user script or skill orchestration."
+    },
+    "langgraph_manual": {
+      "ops_handled_natively": ["OP-3 (recursion_limit + retry counter)", "OP-4 (per-superstep checkpoint)"],
+      "ops_requiring_user_work": ["OP-1", "OP-2 (in tool node)", "OP-5", "OP-6", "OP-7", "OP-8"]
+    }
+  },
+  "downstream_skill_fusion_hints": {
+    "pairs_well_with": [
+      "human-in-the-loop (when verifier passes but a sensitive change needs review)",
+      "bounded-loop (this skill specializes the general bounded-loop pattern for code edits)",
+      "tool-result-feedback (this skill is the code-edit instance of the general pattern)",
+      "repo-map (when the agent needs file context before editing in the loop)",
+      "conventions-pinning (formatter + lint rules belong in CONVENTIONS.md)"
+    ],
+    "supersedes": [
+      "'wrap pytest in a while loop' folk patterns",
+      "ad-hoc shell scripts that call an LLM API and re-prompt with raw output"
+    ]
+  }
+}

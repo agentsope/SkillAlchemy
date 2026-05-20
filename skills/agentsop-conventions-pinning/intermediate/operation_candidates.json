@@ -1,0 +1,148 @@
+{
+  "skill": "conventions-pinning",
+  "version": "0.1.0",
+  "capture_date": "2026-05-19",
+  "tool_agnostic": true,
+  "covered_tools": ["Aider", "Claude Code", "Cursor", "Cline", "CrewAI"],
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Decide-to-pin",
+      "trigger": "User asks how to make an agent respect project style, OR same correction has been typed in chat >= 2 times, OR code review caught project-specific knowledge an agent should have had",
+      "action": "Run Phase 0 decision tree: (Q1) >=3 future sessions on this codebase? (Q2) is the rule already encoded in config files like pyproject/eslintrc/editorconfig? (Q3) is the rule guidance or must-hold invariant?",
+      "output": "Decision: pin | skip | use-hooks-instead",
+      "evidence": [
+        "code.claude.com/docs/en/memory: 'Add to it when Claude makes the same mistake a second time'",
+        "developer.upsun.com/posts/ai/agents-md-less-is-more: context files hurt when they duplicate already-discoverable info",
+        "code.claude.com/docs/en/memory: 'CLAUDE.md instructions ... are not a hard enforcement layer'"
+      ],
+      "tags": ["entry-gate", "decision"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Write first cut",
+      "trigger": "OP-1 returned `pin`",
+      "action": "Fill the 6-section template: Language & versions / Libraries prefer-or-avoid / Style / Layout / Workflow / Conflict-resolution clause. Total 5-15 bullets. Every bullet must be (a) concrete (verifiable from a code snippet), (b) NOT already in pyproject/package.json/eslintrc, (c) command-first or rule-first (no prose paragraphs).",
+      "output": "Conventions file at canonical path for the primary tool (CONVENTIONS.md / CLAUDE.md / .cursor/rules/main.mdc / .clinerules/coding.md / agent backstory string)",
+      "evidence": [
+        "aider.chat/docs/usage/conventions.html: minimal example of 2 bullets (httpx + types)",
+        "code.claude.com/docs/en/memory: < 200 lines per CLAUDE.md, specific over vague",
+        "blakecrosley.com/blog/agents-md-patterns: command-first, task-organized, closure-defined"
+      ],
+      "tags": ["authoring", "core"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Wire load mechanism",
+      "trigger": "Conventions file written",
+      "action": "Per tool: Aider -> add `read: CONVENTIONS.md` to `.aider.conf.yml`; Claude Code -> place at `./CLAUDE.md` or `./.claude/CLAUDE.md` (auto-loaded); Cursor -> add `.cursor/rules/main.mdc` with `alwaysApply: true` frontmatter; Cline -> place in `.clinerules/` (auto-loaded); CrewAI -> inject into each agent's `backstory=` field at construction. If multi-tool repo: make AGENTS.md canonical, have CLAUDE.md `@AGENTS.md` import, etc.",
+      "output": "File appears in the tool's loaded-files introspection (/tokens for Aider, /memory for Claude Code, sidebar for Cursor/Cline)",
+      "evidence": [
+        "aider.chat/docs/usage/conventions.html",
+        "code.claude.com/docs/en/memory: ancestor-walk auto-load",
+        "cursor.com/docs/rules: alwaysApply and globs frontmatter",
+        "docs.cline.bot/customization/cline-rules: all .md and .txt files concatenated"
+      ],
+      "tags": ["loading", "tool-specific"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Verify load with an A/B test",
+      "trigger": "OP-3 wired",
+      "action": "Pick one specific bullet (e.g. 'use httpx not requests'). Ask the agent to write a new function that triggers it. Confirm the rule was followed. If not, re-check loading (the file is shown in /tokens or /memory but not influencing output -> token budget / conflicting nearby example / rule too vague / contradicting user-layer rule).",
+      "output": "Pass/fail. If fail, return to OP-3 with diagnosis.",
+      "evidence": [
+        "aider.chat/docs/usage/conventions.html: documented A/B between with-CONVENTIONS and without"
+      ],
+      "tags": ["verification", "test"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Add a rule",
+      "trigger": "Same mistake twice in a session OR across sessions; OR code review caught project-specific knowledge the agent should have known; OR you re-typed the same correction in chat a third time",
+      "action": "Add one bullet that (a) is concrete and verifiable, (b) is not already encoded in lint/config files, (c) gives a counter-example if the rule is non-obvious. Keep file under 200 lines; if approaching, queue OP-7.",
+      "output": "Updated conventions file with one more bullet",
+      "evidence": [
+        "code.claude.com/docs/en/memory: 'Add to it when Claude makes the same mistake a second time' (canonical trigger list)"
+      ],
+      "tags": ["evolution", "incremental"]
+    },
+    {
+      "id": "OP-6",
+      "name": "Delete a stale rule",
+      "trigger": "Codebase has moved past it (rule says X, every recent file uses Y); OR lint/CI now enforces it; OR rule is too vague to verify and has produced no measurable behavior change; OR file > 200 lines and this rule has the lowest hit rate",
+      "action": "Remove the bullet. If the rule now lives in lint/CI, note the migration in the commit message so future readers don't re-add it.",
+      "output": "Slimmer file; commit message documenting where the rule moved (if anywhere)",
+      "evidence": [
+        "code.claude.com/docs/en/memory: 'Review your CLAUDE.md files ... periodically to remove outdated or conflicting instructions'",
+        "cursor.com/docs/rules: trim aggressively"
+      ],
+      "tags": ["evolution", "pruning"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Split into glob-scoped rule",
+      "trigger": "A rule applies only to a subset of the codebase (e.g. only `src/api/`); AND main file is approaching 200 lines",
+      "action": "Move the rule to a per-glob file with `paths:` frontmatter (Claude Code `.claude/rules/api.md`; Cursor `.mdc` with `globs:` field; Cline `.clinerules/api.md` with `paths:` frontmatter). Main file shrinks; scoped rule loads only when the agent touches matching files.",
+      "output": "New scoped rule file; main file shrunk to baseline.",
+      "evidence": [
+        "code.claude.com/docs/en/memory: `paths:` YAML frontmatter in .claude/rules/",
+        "cursor.com/docs/rules: `globs:` in .mdc frontmatter, nested .cursor/rules per subdir",
+        "docs.cline.bot/customization/cline-rules: paths conditional"
+      ],
+      "tags": ["evolution", "scaling"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Cross-tool unification",
+      "trigger": "Project is used with multiple coder-tools (e.g. Claude Code + Cursor + Aider on the same repo)",
+      "action": "Designate `AGENTS.md` at repo root as canonical (~80 lines, the actual rules). Have CLAUDE.md be a one-line `@AGENTS.md` import. For Cursor's `.mdc`, either duplicate (acceptable if AGENTS.md is small) or generate via pre-commit hook. For Cline, symlink `.clinerules/main.md` -> `../AGENTS.md`. For Aider, set `read: AGENTS.md` in `.aider.conf.yml`. Note: Claude Code's `/init` reads existing `.cursorrules` and `.windsurfrules` automatically, so a legacy `.cursorrules` is not a blocker.",
+      "output": "One canonical AGENTS.md; thin per-tool pointers/imports/symlinks.",
+      "evidence": [
+        "code.claude.com/docs/en/memory: `@AGENTS.md` import syntax; /init reads .cursorrules and .windsurfrules"
+      ],
+      "tags": ["multi-tool", "unification"]
+    }
+  ],
+  "anti_patterns_summary": [
+    "AP-1: Project narrative in conventions file (zero behavior change, costs tokens)",
+    "AP-2: Duplicating package.json / pyproject.toml / eslintrc content the agent already reads",
+    "AP-3: Ambiguous directives ('be careful', 'follow best practices')",
+    "AP-4: Contradictory rules across user-layer + project-layer + ancestor",
+    "AP-5: TODO lists / roadmaps inside conventions",
+    "AP-6: Pinning conventions before the codebase has stabilised (greenfield)",
+    "AP-7: Using conventions as enforcement (use hooks/lint/CI for must-hold rules)",
+    "AP-8: File > 200 lines without splitting into glob-scoped rules",
+    "AP-9: 30 micro-files in .cursor/rules/ — the opposite extreme; aim for 3-8 files when splitting",
+    "AP-10: Forgetting to load the file (Aider --read not in .aider.conf.yml; Cursor alwaysApply: false on a rule meant to always apply)"
+  ],
+  "key_thresholds": {
+    "aider_token_distraction": "25k tokens of total context",
+    "claude_code_per_file": "200 lines per CLAUDE.md (full file always loads)",
+    "claude_code_memory_md_truncation": "200 lines or 25KB of MEMORY.md (auto-memory only; not CLAUDE.md)",
+    "cursor_per_rule": "500 lines per .mdc",
+    "ideal_first_cut": "5-15 bullets, ~50-80 lines",
+    "split_threshold": "approaching 200 lines -> consider glob-scoped split"
+  },
+  "load_introspection_commands": {
+    "aider": "/tokens",
+    "claude_code": "/memory",
+    "cursor": "sidebar -> active rules",
+    "cline": "sidebar -> rules panel",
+    "crewai": "inspect agent.backstory or agent.system_prompt in Python"
+  },
+  "dilemma_cases_covered": 6,
+  "sources_primary": [
+    "aider.chat/docs/usage/conventions.html",
+    "aider.chat/docs/troubleshooting/edit-errors.html",
+    "code.claude.com/docs/en/memory",
+    "cursor.com/docs/rules",
+    "vibecodingacademy.ai/blog/cursor-rules-complete-guide",
+    "docs.cline.bot/customization/cline-rules",
+    "github.com/cline/prompts/blob/main/.clinerules/memory-bank.md",
+    "docs.crewai.com/en/concepts/agents",
+    "developer.upsun.com/posts/ai/agents-md-less-is-more",
+    "blakecrosley.com/blog/agents-md-patterns",
+    "hyperdev.matsuoka.com/p/why-your-ai-agents-need-contextual"
+  ]
+}

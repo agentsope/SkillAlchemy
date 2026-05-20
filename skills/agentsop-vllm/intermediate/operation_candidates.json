@@ -1,0 +1,133 @@
+{
+  "skill": "vllm-sop",
+  "version": "1.0",
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "Diagnose vLLM CUDA OOM at startup",
+      "trigger": "Log shows 'torch.OutOfMemoryError: CUDA out of memory' during engine init or warmup.",
+      "action": [
+        "Lower --max-model-len to the realistic max (prompt + output), not the model's architectural max.",
+        "Lower --gpu-memory-utilization to 0.85 if other processes share the GPU; raise to 0.95 if vLLM is alone and KV cache is too small.",
+        "Add --kv-cache-dtype fp8 (Ampere+) or --enforce-eager (skip CUDA-graph reservation).",
+        "Reduce --max-num-seqs (e.g. 256 -> 64 -> 16).",
+        "If still OOM at TP=1: bump --tensor-parallel-size to shard the model."
+      ],
+      "output": "Engine starts; KV cache occupancy logged at boot is non-zero and <100%.",
+      "evidence": [
+        "https://docs.vllm.ai/en/stable/configuration/conserving_memory/",
+        "https://discuss.vllm.ai/t/cuda-failure-out-of-memory/524",
+        "https://github.com/vllm-project/vllm/issues/188",
+        "https://markaicode.com/errors/vllm-out-of-memory-fix/"
+      ]
+    },
+    {
+      "id": "OP-2",
+      "name": "Pick quantization for an open-weights model",
+      "trigger": "Deploying a model that doesn't fit at BF16, or where cost/throughput matters more than peak quality.",
+      "action": [
+        "Hopper/Ada/Blackwell GPU available? -> prefer FP8 (effectively lossless across model scales).",
+        "No FP8 hardware, need 4x compression? -> AWQ-4 (better 4-bit stability) or GPTQ-4 (slightly better on code tasks).",
+        "Avoid INT3 / 3-bit: ~6-point average drop.",
+        "Verify on held-out eval set in your domain before shipping."
+      ],
+      "output": "Chosen --quantization {fp8|awq|gptq|...} flag; documented expected accuracy delta.",
+      "evidence": [
+        "https://arxiv.org/abs/2411.02355",
+        "https://docs.gpustack.ai/2.0/performance-lab/references/the-impact-of-quantization-on-vllm-inference-performance/",
+        "https://vrlatech.com/llm-quantization-explained-int4-int8-fp8-awq-and-gptq-in-2026/"
+      ]
+    },
+    {
+      "id": "OP-3",
+      "name": "Configure tensor/pipeline parallelism",
+      "trigger": "Model too large for one GPU; multi-GPU or multi-node deployment.",
+      "action": [
+        "One node + NVLink: --tensor-parallel-size=<GPUs in node>, PP=1.",
+        "One node + only PCIe (e.g. L40S, consumer cards): consider --pipeline-parallel-size instead of large TP.",
+        "Multi-node: TP=GPUs/node, PP=#nodes. Use InfiniBand if possible.",
+        "MoE (Mixtral / DeepSeek-V3): combine DP attention + EP/TP on MoE layers.",
+        "Test TP=2 vs TP=4 vs 2x replicas of TP=2 - replicas often win on throughput-per-dollar."
+      ],
+      "output": "Chosen TP/PP/DP/EP config with measured tokens/s on real workload.",
+      "evidence": [
+        "https://docs.vllm.ai/en/stable/serving/parallelism_scaling/",
+        "https://developers.redhat.com/articles/2026/03/09/5-steps-triage-vllm-performance",
+        "https://docs.jarvislabs.ai/blog/scaling-llm-inference-dp-pp-tp"
+      ]
+    },
+    {
+      "id": "OP-4",
+      "name": "Enable prefix caching",
+      "trigger": "Workload has repeated prefixes (shared system prompt, few-shot examples, RAG with stable instructions, multi-turn chat with same persona).",
+      "action": [
+        "Launch with --enable-prefix-caching (V1 often default-on).",
+        "Verify cache hit rate via metrics.",
+        "For multi-replica clusters, pair with prefix-aware routing.",
+        "For multi-tenant, enable cache salting to prevent cross-tenant prefix-hit leakage."
+      ],
+      "output": "Prefill TTFT drops on cache-hit requests; KV occupancy may rise (cached blocks held longer).",
+      "caveats": [
+        "APC accelerates prefill ONLY; if outputs are long and prefixes don't repeat, gain ~ 0.",
+        "Naive round-robin load balancers destroy cache locality."
+      ],
+      "evidence": [
+        "https://docs.vllm.ai/en/stable/design/prefix_caching/",
+        "https://llm-d.ai/blog/kvcache-wins-you-can-see",
+        "https://github.com/vllm-project/vllm/issues/16016"
+      ]
+    },
+    {
+      "id": "OP-5",
+      "name": "Triage live performance (TTFT vs ITL)",
+      "trigger": "SLA miss, user complaints, queueing alerts in production.",
+      "action": [
+        "Step 1 - Isolate symptom: high TTFT vs high ITL (Prometheus histograms).",
+        "Step 2 - Detect saturation: monitor num_requests_running and num_requests_waiting; queue > 0 = bound.",
+        "Step 3 - Check KV health: occupancy near 100% with rising preemption -> drop --max-num-seqs or quantize KV to FP8.",
+        "Step 4 - Sequence-length correlation: ISL/OSL vs latency.",
+        "Step 5 - Distributed strategy: PCIe bottleneck? Drop TP, scale replicas instead."
+      ],
+      "output": "Identified bottleneck class (queue / compute / memory / interconnect) and one targeted change.",
+      "evidence": [
+        "https://developers.redhat.com/articles/2026/03/09/5-steps-triage-vllm-performance"
+      ]
+    },
+    {
+      "id": "OP-6",
+      "name": "Decide on speculative decoding",
+      "trigger": "Latency-bound workload, model >= 13B, low/medium QPS.",
+      "action": [
+        "Draft/EAGLE-3 weights exist for target model? -> Enable; expect up to 2.5x decode speedup.",
+        "No draft model? -> Try n-gram (~1.17x, zero setup risk).",
+        "Skip if QPS is high (large batches already saturate compute -> speculation wastes capacity).",
+        "Always benchmark vs non-speculative baseline; bad hyperparameters can degrade cost-per-token by up to 175%."
+      ],
+      "output": "--speculative-config JSON, with measured tokens/s delta on representative traffic.",
+      "evidence": [
+        "https://docs.vllm.ai/en/latest/features/speculative_decoding/",
+        "https://developers.redhat.com/articles/2025/07/01/fly-eagle3-fly-faster-inference-vllm-speculative-decoding",
+        "https://jarvislabs.ai/blog/speculative-decoding-vllm-faster-llm-inference",
+        "https://arxiv.org/pdf/2601.11580"
+      ]
+    },
+    {
+      "id": "OP-7",
+      "name": "Decide whether vLLM is the right tool at all",
+      "trigger": "Start of a new deployment / engine choice.",
+      "action": [
+        "Production + GPU + concurrent users -> vLLM.",
+        "Dev laptop, 1 user, no concurrency -> Ollama (5-min setup).",
+        "CPU / edge / Apple Silicon production -> llama.cpp.",
+        "NVIDIA-only + 1-2 wk eng budget + max throughput -> consider TensorRT-LLM.",
+        "Heavy prefix sharing / agent state machines -> consider SGLang (RadixAttention)."
+      ],
+      "output": "Engine choice with documented rationale.",
+      "evidence": [
+        "https://www.yottalabs.ai/post/best-llm-inference-engines-in-2026-vllm-tensorrt-llm-tgi-and-sglang-compared",
+        "https://explore.n1n.ai/blog/llm-inference-engine-comparison-vllm-tgi-tensorrt-sglang-2026-03-13",
+        "https://www.aimadetools.com/blog/vllm-vs-ollama-vs-llamacpp-vs-tgi/"
+      ]
+    }
+  ]
+}

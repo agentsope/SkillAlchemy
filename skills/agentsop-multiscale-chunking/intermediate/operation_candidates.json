@@ -1,0 +1,108 @@
+{
+  "skill": "multiscale-chunking",
+  "version": "0.1.0",
+  "type": "enhancement-overlay",
+  "overlay_id": "C5",
+  "base_skill": "llamaindex",
+  "refines": ["llamaindex:OP-02", "llamaindex:OP-05"],
+  "core_flip": "Decouple the embed-unit from the return-unit: embed small for retrieval precision, return large for generation context.",
+  "operation_candidates": [
+    {
+      "id": "MSC-01",
+      "name": "ChunkSizeSweep",
+      "trigger": "New long-doc corpus; chunk size unknown; before any multi-scale work",
+      "action": "Generate ~20 QA pairs; sweep chunk_size in {128,256,512,1024,2048} with overlap 10-20%; build one VectorStoreIndex per config; record faithfulness + relevancy + p95 latency",
+      "output": "A pinned single winner, OR a documented non-flat frontier that authorizes multi-scale chunking",
+      "evidence": "llamaindex.ai/blog/evaluating-the-ideal-chunk-size-for-a-rag-system-using-llamaindex-6207e5d3fec5 ; llamaindex:OP-02"
+    },
+    {
+      "id": "MSC-02",
+      "name": "SentenceWindowSetup",
+      "geometry": "horizontal",
+      "trigger": "Flat prose; point-facts needing surrounding paragraph; lowest setup cost wanted",
+      "action": "SentenceWindowNodeParser(window_size=3) embeds single sentences with N-neighbor windows in metadata; at query time apply MetadataReplacementPostProcessor(target_metadata_key='window') so the LLM receives the window, not the lone sentence",
+      "output": "Sentence-level matching precision + paragraph-level synthesis context",
+      "evidence": "developers.llamaindex.ai SentenceWindow / MetadataReplacement docs ; llamaindex R3 Dilemma 5"
+    },
+    {
+      "id": "MSC-03",
+      "name": "AutoMergingHierarchy",
+      "geometry": "vertical",
+      "trigger": "Documents with clear hierarchy; bursty multi-chunk relevance",
+      "action": "HierarchicalNodeParser.from_defaults(chunk_sizes=[2048,512,128]) builds leaf->parent->root tree; index leaf nodes in a VectorStoreIndex, keep all nodes in a docstore; retrieve with AutoMergingRetriever which returns the parent once a configured fraction of its children are in the hit set",
+      "output": "Leaf-level precision escalating to section-level context when warranted",
+      "evidence": "developers.llamaindex.ai/python/framework/integrations/retrievers/auto_merging_retriever/ ; llamaindex:OP-05"
+    },
+    {
+      "id": "MSC-04",
+      "name": "WindowVsMergeChoice",
+      "trigger": "Multi-scale authorized (MSC-01 non-flat) but strategy undecided",
+      "action": "Inspect document structure: flat -> MSC-02; structured/bursty -> MSC-03; unknown -> start MSC-02 (cheaper) and escalate to MSC-03 if multi-chunk queries underperform",
+      "output": "A strategy chosen by document shape, not by elegance",
+      "evidence": "llamaindex R3 Dilemma 5 ; medium.com/@harsh_77214/beyond-naive-rag-comparing-basic-sentence-window-and-auto-merging-retrieval-..."
+    },
+    {
+      "id": "MSC-05",
+      "name": "EmbedReturnDecouple",
+      "trigger": "Any time chunk-size tuning oscillates between precision and context",
+      "action": "Set embed-unit small, return-unit large; never let them be the same object once the sweep is non-flat; verify by inspecting what text the retriever actually sends to the synthesizer (must be the large unit)",
+      "output": "Pareto improvement on precision x context that no single chunk size achieves",
+      "evidence": "llamaindex Principle 2 (Node relationships) ; llamaindex R3 Dilemma 1 resolution"
+    },
+    {
+      "id": "MSC-06",
+      "name": "MetadataBudgetGuard",
+      "trigger": "Small embed-units (<=256 tokens) with rich metadata propagated into payload",
+      "action": "Ensure metadata never occupies >50% of the embed-unit token budget; strip/shorten metadata before shrinking chunks",
+      "output": "Embed-units carry signal, not mostly boilerplate metadata",
+      "evidence": "github.com/run-llama/llama_index/issues/12200 ; #13792 ; llamaindex A7"
+    },
+    {
+      "id": "MSC-07",
+      "name": "MeasureOrRevert",
+      "trigger": "Multi-scale config wired but lift unverified",
+      "action": "Re-run the Gate-0 eval set; require a measurable faithfulness lift over the best single chunk size; if none, revert to the pinned single size",
+      "output": "Evidence that the added complexity earns its keep, or its removal",
+      "evidence": "llamaindex Stage 2 (eval loop gates every change)"
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D5.1",
+      "title": "Sentence-Window vs Auto-Merging",
+      "resolution": "Match expansion geometry to document structure: flat prose -> horizontal (sentence-window); clear hierarchy or bursty multi-chunk -> vertical (auto-merging); unknown -> start sentence-window (lower setup cost)",
+      "ops": ["MSC-02", "MSC-03", "MSC-04"]
+    },
+    {
+      "id": "D5.2",
+      "title": "Chunk-size sweep: the 1024 optimum and when it does not converge",
+      "resolution": "Sweep first; Uber 10-K peaked at 1024 (prose default; code 80-160). If the frontier is non-flat, do not compromise on a middle size -> decouple via MSC-05",
+      "ops": ["MSC-01", "MSC-05", "MSC-06"]
+    }
+  ],
+  "anti_patterns": [
+    "A1: bump chunk_size (e.g. 4096) when answers feel incomplete -> decouple instead",
+    "A2: SentenceWindowNodeParser without MetadataReplacementPostProcessor",
+    "A3: index parent nodes for auto-merging -> index leaves, store parents",
+    "A4: pick a compromise chunk size on a non-flat frontier",
+    "A5: multi-scale on a short/static corpus (<100k tokens)",
+    "A6: ship multi-scale config without re-running the eval set",
+    "A7: shrink embed-unit while metadata dominates the payload"
+  ],
+  "boundaries": [
+    "B1: short/static corpus (<100k tokens) -> prompt-stuff with caching",
+    "B2: chunk-size sweep already converged -> pin and stop",
+    "B3: bottleneck is embedding/reranker/synthesizer, not precision-vs-context",
+    "B4: hard real-time (<100ms) retrieval -> docstore lookups add latency"
+  ],
+  "cross_framework": {
+    "horizontal_sentence_window": {
+      "llamaindex": "SentenceWindowNodeParser + MetadataReplacementPostProcessor",
+      "langchain": "no first-class equivalent"
+    },
+    "vertical_parent_child": {
+      "llamaindex": "HierarchicalNodeParser + AutoMergingRetriever",
+      "langchain": "ParentDocumentRetriever"
+    }
+  }
+}

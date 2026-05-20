@@ -1,0 +1,160 @@
+{
+  "skill": "idempotent-ingestion",
+  "phase": "D",
+  "tier": "enhance-overlay",
+  "sop_index": "C7",
+  "base_skill": "llamaindex",
+  "overlay_of": ["llamaindex OP-08 IngestionWithDocstore", "llamaindex A10"],
+  "core_rule": "Ingestion must be idempotent: a document's content hash decides insert/update/skip, so re-running over unchanged docs is a no-op.",
+  "extracted_operations": [
+    {
+      "id": "OP-01",
+      "name": "attach-docstore",
+      "trigger": "Any ingestion path that runs more than once with no docstore wired.",
+      "action": "Pass docstore= (persisted Redis/Mongo/Postgres in prod, SimpleDocumentStore for tests) plus docstore_strategy=. The docstore is the dedup ledger keyed doc_id -> content_hash, separate from the vector store.",
+      "output": "Pipeline that can answer 'have I seen this content?' before embedding.",
+      "evidence_anchors": ["S1", "S2"],
+      "framework_mapping": {
+        "llamaindex": "IngestionPipeline(docstore=SimpleDocumentStore(), docstore_strategy=DocstoreStrategy.UPSERTS_AND_DELETE)",
+        "langchain": "SQLRecordManager(namespace=..., db_url=...) passed to index()",
+        "manual": "persisted {doc_id: sha256(content)} table"
+      }
+    },
+    {
+      "id": "OP-02",
+      "name": "pin-stable-doc-id",
+      "trigger": "Docs loaded with random/per-run ids; 're-run re-adds everything' symptom.",
+      "action": "Set filename_as_id=True or assign doc.id_ from a stable external identity (path/CMS id/URL). Never a fresh uuid per load.",
+      "output": "Same source doc hashes to same key across runs -> skip path can fire.",
+      "evidence_anchors": ["S2"],
+      "framework_mapping": {
+        "llamaindex": "SimpleDirectoryReader(filename_as_id=True) or doc.id_ = stable_id",
+        "langchain": "source_id_key='source' (stable per-doc metadata field)",
+        "manual": "d.id from external identity, not uuid4()"
+      }
+    },
+    {
+      "id": "OP-03",
+      "name": "hash-before-embed",
+      "trigger": "Designing or reviewing the dedup decision point.",
+      "action": "Compute content hash and look it up in the docstore BEFORE the embedding transformation runs, so unchanged docs cost zero embedding tokens.",
+      "output": "Re-run cost on a steady corpus ~ 0 embedding calls.",
+      "evidence_anchors": ["S1", "S3"],
+      "framework_mapping": {
+        "llamaindex": "automatic given a docstore in the pipeline",
+        "langchain": "index() skips unchanged via RecordManager hash lookup",
+        "manual": "if store.get(id) == hash: continue (before embed())"
+      }
+    },
+    {
+      "id": "OP-04",
+      "name": "pick-upsert-strategy",
+      "trigger": "Choosing pipeline behaviour for the corpus's change shape.",
+      "action": "UPSERTS (append-mostly), UPSERTS_AND_DELETE (mirror of shrinkable source; prod default), DUPLICATES_ONLY (in-run dedup only, NOT cross-run). Decide from change shape, not by default.",
+      "output": "Documented strategy + one-line rationale.",
+      "evidence_anchors": ["S1"],
+      "framework_mapping": {
+        "llamaindex": "DocstoreStrategy.{UPSERTS, UPSERTS_AND_DELETE, DUPLICATES_ONLY}",
+        "langchain": "cleanup={None, 'incremental', 'full'}",
+        "manual": "branch on prev hash; track seen set for delete"
+      }
+    },
+    {
+      "id": "OP-05",
+      "name": "propagate-deletes",
+      "trigger": "Source docs can be deleted and stale chunks must not be retrieved.",
+      "action": "Use UPSERTS_AND_DELETE; pipeline diffs doc_ids seen this run vs docstore and purges orphans. Gate on 'complete snapshot' to avoid purging on partial input.",
+      "output": "Deleted source docs -> vectors removed; retrieval stays in sync.",
+      "evidence_anchors": ["S1", "S2"],
+      "framework_mapping": {
+        "llamaindex": "DocstoreStrategy.UPSERTS_AND_DELETE",
+        "langchain": "cleanup='full' (snapshot) or 'incremental' (streamed batches)",
+        "manual": "for orphan in stored_keys - seen: vs.delete + store.delete"
+      }
+    },
+    {
+      "id": "OP-06",
+      "name": "reingest-no-op-test",
+      "trigger": "Any ingestion code change merges.",
+      "action": "Run the pipeline twice over identical input; assert the second run() returns 0 processed nodes and vector count unchanged.",
+      "output": "Regression gate proving idempotency is wired through.",
+      "evidence_anchors": ["S1"],
+      "framework_mapping": {
+        "llamaindex": "assert len(pipeline.run(documents=docs)) == 0 on 2nd run",
+        "langchain": "assert index(...)['num_skipped'] == len(docs) on 2nd run",
+        "manual": "assert no vs.add() calls on 2nd pass"
+      }
+    },
+    {
+      "id": "OP-07",
+      "name": "incremental-update-test",
+      "trigger": "Corpus supports edits and/or deletes.",
+      "action": "Edit one doc -> assert exactly that doc's old chunks gone, new present, others untouched. Delete one (under UPSERTS_AND_DELETE) -> its chunks gone, neighbours intact.",
+      "output": "Proof that update/delete are surgical, not full-rebuild.",
+      "evidence_anchors": ["S1"],
+      "framework_mapping": {
+        "llamaindex": "hash-change -> update path; delete path of UPSERTS_AND_DELETE",
+        "langchain": "num_updated==1 / num_deleted==1 with cleanup='full'",
+        "manual": "delete-then-add on hash change; orphan purge"
+      }
+    },
+    {
+      "id": "OP-08",
+      "name": "persist-docstore",
+      "trigger": "SimpleDocumentStore used, or docstore not persisted after run.",
+      "action": "storage_context.persist(persist_dir=...) after each run, or use a server-backed docstore that auto-persists and is shared across workers.",
+      "output": "Cold start reads the ledger -> does not re-embed the world.",
+      "evidence_anchors": ["S1", "S4"],
+      "framework_mapping": {
+        "llamaindex": "storage_context.persist() / RedisDocumentStore / MongoDocumentStore",
+        "langchain": "SQLRecordManager backed by durable DB",
+        "manual": "store.persist() to disk/DB"
+      }
+    },
+    {
+      "id": "OP-09",
+      "name": "manual-hash-upsert",
+      "trigger": "No framework available (raw vector-store SDK, custom loader).",
+      "action": "Maintain {doc_id: sha256(content)} next to the vector store; compute hash, compare, INSERT/UPDATE(delete-then-add)/SKIP; track seen ids for delete propagation; persist.",
+      "output": "Framework-free idempotent ingestion with the same contract.",
+      "evidence_anchors": ["S2", "S3"],
+      "framework_mapping": {
+        "llamaindex": "(this is what IngestionPipeline automates)",
+        "langchain": "(this is what RecordManager automates)",
+        "manual": "hashlib.sha256 + persisted dict + vs.delete/add"
+      }
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "DC-1",
+      "title": "Document changed slightly: re-embed all or chunk-diff?",
+      "resolution": "Default to document-level hashing; if huge+frequently-edited, split source into smaller logical documents so hash granularity matches edit granularity. Chunk-level diffing only if profiling proves per-doc re-embed is the bottleneck.",
+      "anchor_ops": ["OP-02", "OP-03", "OP-04"]
+    },
+    {
+      "id": "DC-2",
+      "title": "Deleted source docs: purge or keep?",
+      "resolution": "Purge with UPSERTS_AND_DELETE / cleanup='full', but behind a 'complete snapshot' guard + partial-input circuit breaker. Prefer soft delete for regulated corpora.",
+      "anchor_ops": ["OP-05", "OP-07", "OP-08"]
+    }
+  ],
+  "anti_patterns": [
+    "from_documents() re-run every cron tick (no docstore -> duplicates)",
+    "IngestionPipeline without docstore=",
+    "SimpleDocumentStore never persisted",
+    "random/per-load doc_id -> nothing ever skips",
+    "volatile metadata (timestamps) in hashed payload -> constant re-embed",
+    "DUPLICATES_ONLY treated as a cross-run re-ingest strategy",
+    "upsert-only on a corpus whose files get deleted -> stale ghosts",
+    "blind UPSERTS_AND_DELETE on possibly-partial run input -> purges live content",
+    "no twice-run idempotency test in CI",
+    "swap embedding model and expect incremental upsert to fix old vectors"
+  ],
+  "cross_framework_axes": [
+    "where the hash ledger lives (docstore vs RecordManager vs manual table)",
+    "how 'did nothing' is observed (run()==[] vs num_skipped==N vs no add calls)",
+    "how deletes propagate (UPSERTS_AND_DELETE vs cleanup='full'/'incremental' vs seen-set diff)",
+    "durability of the ledger (persisted/server-backed vs ephemeral in-memory)"
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "skill": "llm-artifact-versioning",
+  "phase": "D",
+  "frequency": "medium",
+  "type": "enhancement-overlay",
+  "scope": "Versioning the WHOLE deployable LLM-app artifact (prompts + compiled programs + model pins + retrieval config + eval-set version) as one bundle so a deploy is reproducible and rollback-able. Broader sibling of per-model-artifacts (which versions one compiled prompt); this overlay versions everything that ships together.",
+  "core_distinction": "An LLM app artifact is not an ML model. An ML model = one weights file. An LLM app artifact = a manifest of heterogeneous, separately-mutable components (prompt text, compiled program JSON, model snapshot id, retriever config, embedding-bound index pointer, eval-set hash) any one of which silently changes prod behavior.",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "ArtifactManifest",
+      "trigger": "Preparing to deploy an LLM app, or asking 'what exactly is running in prod right now?'",
+      "action": "Enumerate every behavior-affecting component and write a single manifest.json (or deploy.lock) that pins each: prompt file hashes, compiled-program path+sha, model snapshot id per call site, retrieval config (embed model, index pointer, top_k, reranker), eval-set version hash, framework versions. The manifest IS the deployable unit, not any single file.",
+      "output": "deploy/manifest.<version>.json — one bundle id covering all components; grep-able answer to 'what is in prod'.",
+      "evidence": "per-model-artifacts treats one compiled prompt as a (program x LM x dataset) triple; this overlay extends the same discipline to the full bundle. MLflow Model Registry versions a model + signature + run; here the 'model' is a composite app."
+    },
+    {
+      "id": "OP-2",
+      "name": "ModelSnapshotPinning",
+      "trigger": "Any call site that names a model; CI sees an alias pin",
+      "action": "Pin dated snapshots everywhere (gpt-4o-2024-08-06, claude-3-7-sonnet-20250219), never moving aliases (gpt-4o, claude-3-5-sonnet, latest). Record each call site's model in the manifest. Cross-link [[per-model-artifacts]] OP-2 for the per-prompt detail.",
+      "output": "manifest.models[] list with provider/snapshot per call site; no 'latest' anywhere.",
+      "evidence": "per-model-artifacts SKILL section 2 claim 2: 'the snapshot, not the alias, is the identity'; Anthropic does not roll aliases, OpenAI does — both bite silently."
+    },
+    {
+      "id": "OP-3",
+      "name": "ConfigAsCode",
+      "trigger": "Retrieval/runtime config lives in a dashboard, env var, or notebook cell",
+      "action": "Move every behavior knob into version-controlled config (top_k, chunk size, reranker on/off, temperature, system-prompt path, index pointer). The manifest references config by commit/hash. Dashboards are not artifacts.",
+      "output": "config/ tree under git; manifest references config_sha; nothing behavioral lives outside VCS.",
+      "evidence": "per-model-artifacts cross-framework: Aider edit-format defaults and LlamaIndex Settings are config artifacts too — 'artifact generalizes beyond compiled JSON'."
+    },
+    {
+      "id": "OP-4",
+      "name": "EvalSetLinkage",
+      "trigger": "Bundling a version; about to tag a release",
+      "action": "Tie the bundle to the exact eval-set version (sha256 of canonical eval bytes) that produced its scores. A bundle without a pinned eval-set has no reproducible score. Cross-link [[regression-gate]]: the gate re-runs THIS eval-set on the new bundle vs parent.",
+      "output": "manifest.eval_set_sha + scores; reproducible 'this bundle scored X on eval-set Y'.",
+      "evidence": "dspy-sop Stage 2: 30 min / 300 recommended dev set; score only meaningful relative to a fixed set. per-model-artifacts ties dataset_sha256_8 into artifact identity."
+    },
+    {
+      "id": "OP-5",
+      "name": "BundleAndVersion",
+      "trigger": "All components pinned; ready to ship",
+      "action": "Assign one monotonic bundle version (deploy/v<n> or git tag deploy/<n>) covering the whole manifest. Components may have independent versions internally, but the BUNDLE has one id that production deploys atomically.",
+      "output": "git tag deploy/v7 -> resolves to manifest.v7.json -> resolves all component versions.",
+      "evidence": "per-model-artifacts OP-10 GitTagOnRelease (per-prompt); this elevates to a whole-bundle tag. MLflow Stage promotion analogy."
+    },
+    {
+      "id": "OP-6",
+      "name": "RollbackRecipe",
+      "trigger": "Prod incident; need to revert to last known-good behavior",
+      "action": "Deploy reads the bundle tag, not HEAD. Rollback = re-point the deploy to the previous bundle tag (git checkout deploy/v6). Because the bundle pins ALL components, rollback restores prompts + model + config + index pointer together — no partial revert.",
+      "output": "One-command atomic rollback: deploy deploy/v6. No 'oops the prompt reverted but the model didn't'.",
+      "evidence": "per-model-artifacts OP-10: 'Deploy reads the tag, not main HEAD. Atomic rollback via git checkout <tag>.' This overlay makes the unit the whole bundle."
+    },
+    {
+      "id": "OP-7",
+      "name": "ComponentDriftAudit",
+      "trigger": "Score regressed; need root-cause class",
+      "action": "Diff manifest vN vs vN-1 field-by-field: prompt_sha changed -> prompt drift; model snapshot changed -> model drift; config_sha changed -> config drift; eval_set_sha changed -> you compared apples to oranges; index pointer changed -> retrieval drift. The manifest makes the change surface explicit.",
+      "output": "Root-cause class from a manifest diff, before re-running anything.",
+      "evidence": "per-model-artifacts section 4.4 lineage ops: diff REGISTRY entries to classify dataset/config/framework/environment drift."
+    },
+    {
+      "id": "OP-8",
+      "name": "RetrievalConfigBinding",
+      "trigger": "App uses RAG; index built with a specific embedding model",
+      "action": "Pin the index pointer (which index dir) AND its embedding model + dim in the manifest. Loader refuses to start if runtime embed model != manifest embed model. The index is part of the deployable bundle even though it lives elsewhere.",
+      "output": "manifest.retrieval = {index_path, embed_model, dim, corpus_sha8, top_k, reranker}.",
+      "evidence": "per-model-artifacts Case C and cross-framework: embedding model is part of index identity; mixing spaces is the worst-case silent failure."
+    }
+  ],
+  "selected_for_skill": ["OP-1","OP-2","OP-3","OP-4","OP-6"],
+  "notes": "SKILL section 4 surfaces 5 ops as required by spec (artifact manifest, model-snapshot pinning, config-as-code, rollback recipe, eval-set linkage). OP-7/OP-8 included as supporting ops referenced in dilemma cases and anti-patterns."
+}

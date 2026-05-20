@@ -1,0 +1,110 @@
+{
+  "skill": "repo-map",
+  "version": "0.1.0",
+  "extraction_notes": "Operations distilled from Aider's repo-map command surface plus generalized primitives every coder-agent harness will need. Operation names are conventions in SKILL.md; the underlying behaviors are framework-agnostic.",
+  "candidates_considered": [
+    {
+      "name": "map.build",
+      "kept": true,
+      "rationale": "Fundamental: every harness needs a 'create initial map' entry point. Maps to Aider implicit-on-start behavior."
+    },
+    {
+      "name": "map.refresh",
+      "kept": true,
+      "rationale": "Stale maps cause hallucinated symbols. Explicit refresh is the most common dilemma trigger."
+    },
+    {
+      "name": "map.scope",
+      "kept": true,
+      "rationale": "Monorepo scoping is the dominant context-overflow mitigation. Maps to Aider --subtree-only."
+    },
+    {
+      "name": "map.print",
+      "kept": true,
+      "rationale": "Auditability is repo-map's structural advantage over RAG. Worth an explicit op."
+    },
+    {
+      "name": "map.locate",
+      "kept": true,
+      "rationale": "The 'use' phase of the SOP. Backed by the 70.3% benchmark. This is *the* operation, not a minor utility."
+    },
+    {
+      "name": "map.budget_set",
+      "kept": true,
+      "rationale": "Token-budget tuning is a first-class concern given the 25k attention threshold."
+    },
+    {
+      "name": "map.ignore_add",
+      "kept": true,
+      "rationale": "Most common 'first response' to oversized maps. Cheap, high-leverage."
+    },
+    {
+      "name": "map.diff",
+      "kept": true,
+      "rationale": "Unique to repo-map (RAG can't do this). Surfaces silent drift between sessions."
+    },
+    {
+      "name": "map.merge_multiple_repos",
+      "kept": false,
+      "rationale": "Cross-repo is out of scope for v0.1. Noted as open question in R2."
+    },
+    {
+      "name": "map.semantic_overlay",
+      "kept": false,
+      "rationale": "Hybrid repo-map + embedding ranking is speculative; no benchmark support yet."
+    },
+    {
+      "name": "map.symbol_search",
+      "kept": false,
+      "rationale": "Better left to grep/IDE; not a repo-map specific primitive."
+    },
+    {
+      "name": "map.cache_warm",
+      "kept": false,
+      "rationale": "Implementation detail of build/refresh; not a user-facing operation."
+    }
+  ],
+  "operation_design_principles": [
+    "Each op cites at least one Aider source URL or generalized engineering rationale.",
+    "Trigger/Action/Output/Evidence shape forces concrete usage examples.",
+    "Names are framework-agnostic but follow Aider's mental groupings for transferability.",
+    "Operations are composable: map.build → map.locate → (write-set decision) → map.budget_set(0) is a canonical pipeline."
+  ],
+  "dilemma_cases_extracted": [
+    {
+      "case_id": 1,
+      "label": "repo_too_big_dilutes_signal",
+      "primary_evidence": "25k token attention degradation [aider.chat/docs/troubleshooting/edit-errors.html]",
+      "operations_invoked": ["map.ignore_add", "map.scope", "map.budget_set", "map.locate", "map.disable"]
+    },
+    {
+      "case_id": 2,
+      "label": "wrong_file_edited",
+      "primary_evidence": "Aider's write-set / read-set separation design; 70.3% on SWE-Bench Lite as baseline [aider.chat/2024/05/22/swe-bench-lite.html]",
+      "operations_invoked": ["map.refresh", "map.locate", "map.diff", "map.build"]
+    },
+    {
+      "case_id": 3,
+      "label": "multi_language_partial_tree_sitter",
+      "primary_evidence": "py-tree-sitter-languages coverage [aider.chat/2023/10/22/repomap.html]",
+      "operations_invoked": ["map.ignore_add", "map.print"]
+    },
+    {
+      "case_id": 4,
+      "label": "high_edit_rate_refresh_bottleneck",
+      "primary_evidence": "Dynamic budget design [aider.chat/docs/repomap.html]",
+      "operations_invoked": ["map.refresh"]
+    }
+  ],
+  "surprising_findings_log": [
+    "Aider's 70.3% on SWE-Bench Lite was achieved with NO code execution at reasoning time, NO embeddings, and NO network calls. This single configuration may be the highest-ROI public datapoint in 2024 coder-agent design.",
+    "The repo-map blog post (2023-10-22) uses 'graph ranking algorithm' — not 'PageRank' — even though community writeups universally call it PageRank. Worth noting in R1.",
+    "The default --map-tokens is only 1k, much smaller than most agent implementations assume. The signal-density premium is high.",
+    "Aider's design separates 'navigation' (repo-map gives the LLM a view) from 'write authorization' (only /add-ed files are editable). Most newer agents collapse these, which correlates with the 'wrong file edited' failure mode."
+  ],
+  "open_questions": [
+    "What is the floor of map quality beneath which the harness should refuse to operate?",
+    "Are there language-specific PageRank-edge weights that outperform uniform edges?",
+    "Does map staleness cost more than the cost of full rebuild for repos under N files? (worth a microbenchmark)"
+  ]
+}

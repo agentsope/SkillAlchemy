@@ -1,0 +1,158 @@
+{
+  "skill": "selfhost-decision",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "phase": "D-enhance (D6)",
+  "kind": "enhancement-overlay (project-kickoff rubric)",
+  "question": "When is running your own inference/platform worth the ops cost vs using a managed API/cloud?",
+  "core_principle": "Self-host trades ops burden for control + unit-cost-at-scale; managed trades $/token for zero ops. The crossover is a function of two axes: VOLUME (does fixed GPU+ops cost beat per-token API spend?) and COMPLIANCE (does data-residency / air-gap forbid the managed path outright?). Compliance is a gate (binary, overrides cost); volume is a slider (continuous crossover).",
+  "cross_links": ["llm-engine-selection", "dify-sop"],
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "Volume-crossover calculation",
+      "trigger": "Choosing where to run inference and cost is a stated pressure; you have (or can estimate) a monthly token / request volume.",
+      "action": [
+        "Estimate monthly volume: requests/mo x (avg input + output tokens).",
+        "Managed cost = volume x blended $/token (use the provider's input+output mix for your model).",
+        "Self-host cost = amortized GPU (rent or own) + ops labor (DevOps fraction-of-FTE) + storage/networking + the long tail (backup, upgrades, on-call).",
+        "Crossover volume V* = (GPU + ops + infra fixed cost) / (managed $/token - self-host marginal $/token).",
+        "Decide: below V* managed wins on total cost; above V* self-host wins IF utilization stays high (idle GPUs invert the math)."
+      ],
+      "output": "A crossover volume V* and which side of it the projected volume sits on, with the ops-labor term made explicit (not assumed zero).",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 (用量大 millions of calls -> self-host; team <=3 small usage -> Cloud $59-159/mo beats养 DevOps)",
+        "https://www.architjn.com/blog/dify-cloud-pricing-plans-free-tier-when-to-self-host"
+      ]
+    },
+    {
+      "id": "OP-2",
+      "name": "Compliance / data-residency gate",
+      "trigger": "Data touched by the workload is regulated, customer-confidential, or contractually bound to a region/boundary.",
+      "action": [
+        "Ask: does any law / contract / certification (HIPAA, finance, GDPR residency, air-gap, gov) forbid data leaving your boundary?",
+        "If YES -> compliance gate FAILS the managed path regardless of volume; self-host (or a BAA-backed managed offering in-region) is mandatory.",
+        "If a managed provider offers an in-region / VPC / BAA tier that satisfies the requirement, that re-opens the managed path - check before defaulting to self-host.",
+        "Treat this as a binary gate evaluated BEFORE the volume slider: a hard compliance NO overrides any cost advantage."
+      ],
+      "output": "A pass/fail on the managed path from compliance alone, evaluated before cost.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 (合规/数据驻留 金融医疗 -> self-host; air-gapped/内网 -> self-host)",
+        "output/vllm-sop-skill/SKILL.md OP-4 caveat (multi-tenant cache salting / cross-tenant privacy)"
+      ]
+    },
+    {
+      "id": "OP-3",
+      "name": "Honest ops-capacity check",
+      "trigger": "Self-host looks attractive on the cost slider; before committing, validate you can actually run it.",
+      "action": [
+        "Self-host is NOT 'docker compose up' done - it is reverse proxy + HTTPS + backups + monitoring + upgrade strategy + on-call.",
+        "Score the team honestly: do you have DevOps capacity / SRE on-call / a person who owns the GPU box at 3am?",
+        "Production self-host means external PostgreSQL/Redis/Vector DB (not the bundled containers), K8s + Helm or equivalent, and a tested upgrade path.",
+        "If ops capacity is absent, the 'cheaper at scale' GPU math is a trap: outage cost + opportunity cost of the team's time erases the savings."
+      ],
+      "output": "A go/no-go on self-host based on real ops capacity, with the unbundling-of-stateful-stores requirement flagged.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 实操要点 (自部署 != docker compose up; 生产用 K8s+Helm + 外部 PostgreSQL/Redis/Vector DB)",
+        "output/vllm-sop-skill/SKILL.md Anti-pattern 6 (vLLM needs 2+N CPU cores; under-provisioning makes API server the bottleneck)"
+      ]
+    },
+    {
+      "id": "OP-4",
+      "name": "Throughput-headroom reality check (self-host)",
+      "trigger": "Self-host is chosen on cost grounds; you must confirm the self-hosted stack actually sustains the volume that justified it.",
+      "action": [
+        "Find the per-replica ceiling of the platform you would self-host (e.g. Dify ~10 QPS / pod, node-level DB-query bottleneck).",
+        "Find the per-replica ceiling of the engine (e.g. vLLM continuous batching, KV-cache occupancy, preemption count).",
+        "Compute replicas needed = peak QPS / per-replica ceiling, then re-feed that replica count into OP-1's GPU+ops cost.",
+        "If the replica count to hit the volume is large, the 'self-host is cheaper at scale' assumption may not survive - re-run the crossover with the true replica count."
+      ],
+      "output": "A replica count required to meet volume, fed back into the crossover so the cost math reflects real throughput limits.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md §6.2 (~10 QPS/pod hard limit, 每节点单独 DB query)",
+        "output/vllm-sop-skill/SKILL.md OP-5 (triage num_requests_waiting, KV occupancy, preemption)"
+      ]
+    },
+    {
+      "id": "OP-5",
+      "name": "Hybrid: self-host baseline + managed burst",
+      "trigger": "Volume is high enough that self-host pays for the baseline, but traffic is spiky, or a premium/compliance tier coexists with a bulk tier.",
+      "action": [
+        "Provision self-host for the steady-state floor (high, predictable utilization keeps GPU $/token low).",
+        "Route burst / overflow traffic to a managed API so you do not over-provision idle GPUs for peaks.",
+        "Optionally split by tier: compliance-bound or premium traffic -> self-host; bulk/non-sensitive -> cheaper managed or a smaller self-host pool.",
+        "Keep one routing layer (gateway) so the self-host/managed split is a config decision, not a rewrite."
+      ],
+      "output": "A baseline-self-host + burst-managed routing plan that keeps GPU utilization high and caps over-provisioning.",
+      "evidence": [
+        "output/vllm-sop-skill/SKILL.md Dilemma 2 resolution (serve two replicas - FP8 premium tier, AWQ free tier)",
+        "output/vllm-sop-skill/SKILL.md Step 7 (add a replica / data parallelism when SLA violated under load)"
+      ]
+    },
+    {
+      "id": "OP-6",
+      "name": "Same-image / lock-in audit",
+      "trigger": "Evaluating a self-hostable platform's paid tiers, or worried about being locked into a managed vendor.",
+      "action": [
+        "For self-hostable platforms: check whether Community / Premium / Enterprise are the SAME Docker image gated by env vars / license keys (then the open tier is technically sufficient for many needs).",
+        "For managed APIs: audit lock-in surface - proprietary model, proprietary fine-tune format, egress cost, contract minimums.",
+        "Prefer vendor-neutral self-host engines (vLLM, open weights) so the managed<->self-host door stays open both ways.",
+        "Confirm the license actually permits your commercial use before betting the product on it."
+      ],
+      "output": "A lock-in / license assessment for each candidate, plus the finding of whether paid self-host tiers differ from the open one in substance.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 (Community/Premium/Enterprise 用同一 Docker image, 差异在环境变量)",
+        "output/dify-sop-skill/SKILL.md §6.4 (Apache 2.0-like license 'not really' - confirm terms before heavy commercial dependence)",
+        "output/vllm-sop-skill/SKILL.md §7 (TensorRT-LLM beats vLLM 30-50% but locks you in)"
+      ]
+    },
+    {
+      "id": "OP-7",
+      "name": "Fallback / exit plan",
+      "trigger": "A decision has been made (either way); de-risk before scaling on it.",
+      "action": [
+        "If managed: define the trigger that would flip you to self-host (e.g. monthly spend > V* for 3 consecutive months, or a new compliance requirement) and keep an open-weights equivalent identified.",
+        "If self-host: define the trigger that would flip you back to managed (e.g. ops cost / outage rate exceeds savings, team loses its DevOps owner) and keep a managed fallback wired into the gateway.",
+        "Keep the abstraction thin (OpenAI-compatible API surface on both sides) so the flip is a config change, not a migration project.",
+        "Re-evaluate on a cadence (quarterly) - price/quality frontiers and your volume both move."
+      ],
+      "output": "A documented bidirectional flip trigger + a thin OpenAI-compatible abstraction so reversing the decision is cheap.",
+      "evidence": [
+        "output/vllm-sop-skill/SKILL.md §7 common pattern (develop on Ollama -> benchmark vLLM -> consider others) implies staged, reversible choices",
+        "output/dify-sop-skill/SKILL.md §1 判断公式 (bottleneck-driven, re-evaluable choice)"
+      ]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "D1",
+      "title": "Low volume but data-residency requires self-host",
+      "rule": "Compliance gate (OP-2) overrides the volume slider (OP-1). Even when volume is far below the cost crossover - where managed would be cheaper - a hard data-residency / air-gap requirement fails the managed path. Resolution: self-host the smallest adequate stack (single replica, modest GPU), accept the ops burden as the cost of compliance, OR find a managed in-region/BAA/VPC tier that satisfies the boundary (which re-opens managed). Do NOT pay for self-host scale you don't need just because compliance forced self-host - right-size it.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 (合规/数据驻留, air-gapped -> self-host regardless of volume)",
+        "output/vllm-sop-skill/SKILL.md OP-4 caveat (multi-tenant privacy / cache salting)"
+      ]
+    },
+    {
+      "id": "D2",
+      "title": "Dify self-host vs cloud ops cost (the canonical case)",
+      "rule": "Team <=3, small usage: Dify Cloud Pro/Team ($59-159/mo) beats hiring/diverting DevOps. High usage (millions of calls): subscription cost overruns infra -> self-host. BUT self-host is not 'docker compose up' - it is reverse proxy + HTTPS + backups + monitoring + upgrades, and production needs K8s + Helm + EXTERNAL PostgreSQL/Redis/Vector DB. And the ~10 QPS/pod ceiling means high volume needs many replicas (re-feed into the crossover via OP-4). Finding: Community/Premium/Enterprise are the same Docker image gated by env vars, so the open tier is often technically sufficient - the paywall buys support, not capability. Resolution: run OP-1 with the ops-labor term included and OP-3's honest capacity check; if either fails, managed wins despite a favorable raw GPU cost.",
+      "evidence": [
+        "output/dify-sop-skill/SKILL.md Case 3 决策矩阵 + 实操要点",
+        "https://www.architjn.com/blog/dify-cloud-pricing-plans-free-tier-when-to-self-host",
+        "output/dify-sop-skill/SKILL.md §6.2 (~10 QPS/pod)"
+      ]
+    }
+  ],
+  "anti_patterns": [
+    "Self-host for prestige / 'we run our own AI' at low volume - pays GPU + ops to lose money vs a $59/mo managed plan.",
+    "Choosing managed when compliance forbids it - a cost win that is legally void.",
+    "Costing self-host as raw GPU price only, with ops labor / backup / on-call / upgrades assumed free.",
+    "Assuming 'docker compose up' is production self-host (no reverse proxy, HTTPS, backups, external stateful stores, upgrade path).",
+    "Ignoring per-replica throughput ceilings (~10 QPS/pod, KV-cache limits) so the 'cheaper at scale' math never accounts for the replica count.",
+    "Over-provisioning self-host GPUs for peak traffic instead of bursting overflow to managed (idle GPUs invert the unit-cost story).",
+    "Paying for an Enterprise self-host tier when it is the same image as the open one gated by env vars - unless you actually need the support contract.",
+    "Making a one-way bet with no flip trigger and no thin OpenAI-compatible abstraction, so reversing means a migration project.",
+    "Treating the decision as permanent - not re-evaluating as volume grows and price/quality frontiers move."
+  ]
+}

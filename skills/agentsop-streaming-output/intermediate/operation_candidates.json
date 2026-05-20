@@ -1,0 +1,129 @@
+{
+  "skill": "streaming-output",
+  "version": "0.1.0",
+  "kind": "enhancement-overlay",
+  "topic": "T7 — streaming tool/agent output (backend SOP)",
+  "research_date": "2026-05-20",
+  "axiom": "Stream what the user needs to see — final tokens for chat, intermediate updates for agents, custom events for progress — over the right transport, and decide up front whether a client disconnect cancels or detaches the run.",
+  "overlay_targets": ["langgraph-sop", "langchain-sop"],
+  "cross_links": ["[[langgraph-sop]] OP-8 (stream tokens + observability)", "[[langgraph-sop]] Step 6 (checkpointer for durable/resumable detach)"],
+  "audiences": [
+    {"name": "chat", "wants": "final tokens char-by-char", "modes": {"langgraph": "messages", "langchain": "on_chat_model_stream", "openai": "stream=True delta.content", "anthropic": "messages.stream text_stream"}},
+    {"name": "agent-inspector", "wants": "intermediate step updates (node entered, tool called, partial state)", "modes": {"langgraph": "updates", "langchain": "on_tool_*/on_chain_*", "openai": "tool_calls deltas (manual)", "anthropic": "content_block_* (manual)"}},
+    {"name": "progress", "wants": "in-tool/in-node progress invisible to the framework", "modes": {"langgraph": "custom + get_stream_writer()", "langchain": "dispatched custom event", "openai": "out-of-band", "anthropic": "out-of-band"}}
+  ],
+  "operations": [
+    {
+      "id": "op-1",
+      "category": "tokens",
+      "trigger": "User-facing chat; want typing effect on the final answer.",
+      "action": "LangGraph graph.astream(inp, stream_mode='messages') -> yield each (token, metadata).content, filtered to the final node. Raw: OpenAI stream=True iterate delta.content; Anthropic with client.messages.stream(...) as s: for t in s.text_stream.",
+      "output": "Character-by-character final answer; no tool JSON leaks.",
+      "limitations": "Without metadata filtering, multi-agent graphs leak sub-agent tokens into the bubble (see op-8).",
+      "evidence": ["[lg/stream] messages mode", "[oai/stream]", "[anthropic/stream]"]
+    },
+    {
+      "id": "op-2",
+      "category": "steps",
+      "trigger": "Dev/inspector UI; show which node/tool with inputs.",
+      "action": "LangGraph stream_mode='updates' -> each chunk is {node_name: state_diff}; render as step log. LCEL astream_events(version='v2'), switch on event['event'] (on_tool_start/on_tool_end/on_chain_*).",
+      "output": "Live step trace without the full-state weight of 'values'.",
+      "limitations": "Raw OpenAI/Anthropic have no first-class step stream; reconstruct from tool-call deltas / content-block events.",
+      "evidence": ["[lg/stream] updates mode", "[lc/astream-events]"]
+    },
+    {
+      "id": "op-3",
+      "category": "progress",
+      "trigger": "A tool/node does long internal work (embed 200 docs, paginate API) the framework cannot see.",
+      "action": "LangGraph: inside node, w = get_stream_writer(); w({'progress': i/n}); consume on stream_mode='custom'. LCEL: dispatch a custom event/callback surfaced by astream_events.",
+      "output": "Real progress signal instead of a frozen spinner.",
+      "limitations": "OpenAI/Anthropic have no in-call progress channel; must emit out-of-band.",
+      "evidence": ["[lg/stream] custom mode + stream writer"]
+    },
+    {
+      "id": "op-4",
+      "category": "multiplex",
+      "trigger": "One surface needs tokens AND steps AND progress on one connection.",
+      "action": "stream_mode=['messages','updates','custom']; map each (mode, chunk) tuple to a distinct SSE event: name; client addEventListener per name.",
+      "output": "Single connection, cleanly demuxed; no extra round-trips.",
+      "limitations": "Client must implement the demux; untagged interleaving is unparseable.",
+      "evidence": ["[lg/stream] list form returns (mode, chunk) tuples", "[mdn/sse] named events"]
+    },
+    {
+      "id": "op-5",
+      "category": "transport",
+      "trigger": "Choosing the transport.",
+      "action": "Receive-only -> SSE (free reconnect + Last-Event-ID). Client must push mid-stream (cancel/steer/collab) -> WebSocket. Both ends yours / non-HTTP -> async generator.",
+      "output": "Right transport; no hand-rolled reconnect for the common case.",
+      "limitations": "WebSocket adds reconnect logic SSE gives for free; don't reach for it by default.",
+      "evidence": ["[mdn/sse] EventSource auto-reconnect, server-push only"]
+    },
+    {
+      "id": "op-6",
+      "category": "disconnect",
+      "trigger": "Stream may outlive the client's interest.",
+      "action": "Hook the request cancellation token. CANCEL: close the async generator -> upstream LLM/agent call aborts; release resources. DETACH: keep running under a checkpointer, log events with monotonic IDs so reconnect replays from Last-Event-ID.",
+      "output": "No zombie runs burning tokens; or a resumable run, by design.",
+      "limitations": "Detach requires a persistence layer (defer to [[langgraph-sop]] Step 6).",
+      "evidence": ["[oai/stream] cancellation", "[mdn/sse] Last-Event-ID", "[[langgraph-sop]] Step 6 checkpointer"]
+    },
+    {
+      "id": "op-7",
+      "category": "hardening",
+      "trigger": "Long quiet gaps cause proxy drops, or tokens arrive in clumps not smoothly.",
+      "action": "Emit ': ping\\n\\n' comments every ~15s; set X-Accel-Buffering: no / disable proxy buffering; flush after each event.",
+      "output": "Connection survives idle periods; tokens render smoothly.",
+      "limitations": "Heartbeat interval must beat the proxy idle timeout.",
+      "evidence": ["[mdn/sse] comment lines keep socket warm"]
+    },
+    {
+      "id": "op-8",
+      "category": "filter",
+      "trigger": "A multi-agent graph streams every LLM's tokens; the chat bubble fills with sub-agent noise.",
+      "action": "On messages mode, inspect metadata (langgraph_node, tags) and forward only tokens whose node is the user-facing responder; route the rest to updates (dev view) or drop.",
+      "output": "Clean final answer; sub-agent reasoning stays in the inspector.",
+      "limitations": "Requires knowing the responder node name / tag convention.",
+      "evidence": ["[lg/stream] messages chunks carry node metadata"]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "dc-1",
+      "name": "Stream tokens vs stream steps for an agent that thinks then answers",
+      "tension": "messages-only -> 40s frozen spinner then text dump; updates-only -> step list but final answer arrives all at once losing the typing feel.",
+      "resolution": "stream_mode=['updates','messages']: updates drive a live step list during tool work; messages tokens stream into the bubble for the final node (op-4 demux + op-8 filter). Add custom progress for slow individual tools (op-3).",
+      "extractable_ops": ["op-4", "op-8", "op-3"],
+      "rule": "The answer to 'tokens or steps' is almost always 'both, tagged, on one wire' — the question is which is primary when."
+    },
+    {
+      "id": "dc-2",
+      "name": "Client disconnects mid-stream — cancel run or finish?",
+      "tension": "90s agent with an irreversible side effect (books a flight); user closes tab at second 30. Hard-cancel risks a half-booking; finishing burns tokens for a possibly-gone client.",
+      "resolution": "Decision = cancel-vs-detach by reversibility + cost. Side-effecting: detach, let the durable step finish under a checkpointer, persist event log with monotonic IDs, replay on reconnect via Last-Event-ID. Read-only chat: cancel immediately to stop burning tokens.",
+      "extractable_ops": ["op-6"],
+      "rule": "Disconnect policy is a function of side-effect reversibility and per-step cost — decide it per surface, before shipping; never let it default to whatever the framework does on socket close."
+    }
+  ],
+  "anti_patterns": [
+    {"id": "ap-1", "name": "Stream everything", "symptom": "Forwarding raw debug/values firehose to a chat UI floods it with full-state snapshots and sub-agent tokens.", "fix": "Project to the audience (Step 2); values is heavy by design."},
+    {"id": "ap-2", "name": "Stream a sub-second call", "symptom": "SSE/WS framing + reconnect + partial-parse bugs for zero perceived-latency gain.", "fix": "Return the whole payload; only stream when a human waits on a >1-2s run."},
+    {"id": "ap-3", "name": "No disconnect handling", "symptom": "Zombie runs burn tokens after the client is gone, or side effects half-complete.", "fix": "Decide cancel vs detach in Step 5 (op-6)."},
+    {"id": "ap-4", "name": "Untagged interleaved streams", "symptom": "Tokens and tool names on one unnamed wire are unparseable client-side.", "fix": "Tag with SSE event: / the (mode, chunk) tuple (op-4)."},
+    {"id": "ap-5", "name": "Sub-agent token leak", "symptom": "Final chat bubble fills with internal reasoning from non-responder LLMs.", "fix": "Filter messages by node metadata (op-8)."},
+    {"id": "ap-6", "name": "No heartbeat", "symptom": "Long quiet gaps behind a proxy silently kill the connection; user sees a hang.", "fix": "Ping every ~15s with a comment line (op-7)."},
+    {"id": "ap-7", "name": "Proxy buffering left on", "symptom": "Tokens arrive batched, destroying the streaming feel.", "fix": "Disable buffering explicitly (X-Accel-Buffering: no), flush per event (op-7)."},
+    {"id": "ap-8", "name": "WebSocket by default", "symptom": "Hand-rolling reconnect for a receive-only surface.", "fix": "Use SSE; reserve WS for true bidirectional needs (op-5)."}
+  ],
+  "boundaries": [
+    "Output must be validated/transformed as a whole before the user sees any of it (structured JSON, safety pass) -> stream into a parser, never raw to the user.",
+    "Consumer is a machine wanting one atomic JSON object -> return the whole response; partial JSON tokens are a parsing hazard.",
+    "No human waiting (offline batch) -> streaming adds cost for no audience."
+  ],
+  "cross_framework": {
+    "langgraph": "Cleanest separable projections (messages/updates/custom) composable on one wire; best when you already have a graph. See [[langgraph-sop]] OP-8.",
+    "langchain_lcel": "astream_events = richest typed event taxonomy; one stream, branch on event. Best for fine-grained lifecycle routing without a full graph.",
+    "openai": "Single token/delta stream; steps reconstructed from tool_calls deltas; supports cancellation.",
+    "anthropic": "client.messages.stream + text_stream; tool use via content-block events; steps reconstructed.",
+    "transport_note": "SSE / WebSocket / async generator is orthogonal to the SDK; pick SDK for what to stream, transport for how the client consumes."
+  }
+}

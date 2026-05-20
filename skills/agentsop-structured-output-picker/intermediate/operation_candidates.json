@@ -1,0 +1,154 @@
+{
+  "skill": "structured-output-picker",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "enhances": ["outlines", "instructor", "guidance"],
+  "cross_links": ["output-format-by-model", "dspy"],
+  "one_sentence": "Constraint at decode (grammar) vs constraint at validate (retry) — pick by how costly a malformed output is and whether you control the decoder; then pick the failure stance, Assert (hard-fail) vs Suggest (soft-nudge).",
+  "axis": {
+    "decode_time": {
+      "mechanisms": ["outlines", "guidance", "provider-native-strict-mode"],
+      "needs_decoder_access": true,
+      "guarantee": "cannot emit invalid shape (token masking)",
+      "pick_when": "malformed output is expensive/impossible to recover; no retry budget; hard enum/regex/grammar contract"
+    },
+    "validate_time": {
+      "mechanisms": ["instructor", "dspy-assert-suggest", "hand-rolled-retry"],
+      "needs_decoder_access": false,
+      "guarantee": "catches bad output, re-asks with error injected",
+      "pick_when": "malformed output is cheap to recover; strong model; rare failures; closed API model"
+    }
+  },
+  "prerequisites": [
+    "P1 decoder access: grammar libs (outlines/guidance) need logits -> local/open weights only; closed API -> provider-native or instructor",
+    "P2 content shape: if content is code/reasoning/prose, do NOT enforce here -> defer to output-format-by-model (grammar yields valid JSON containing degraded code)"
+  ],
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "DecideEnforcementStrength",
+      "trigger": "Shape decided 'typed object'; enforcement layer not yet chosen.",
+      "action": [
+        "Ask: how costly is a malformed output?",
+        "Cheap to recover (retry OK, strong model, rare) -> validate-time.",
+        "Must never escape / no retry budget / hard real-time / batch -> decode-time grammar.",
+        "Start at the weakest sufficient layer; escalate only on cost/contract."
+      ],
+      "output": "Decode-vs-validate decision before any library is named.",
+      "evidence": ["outlines: 'during generation' guarantee", "instructor: auto-retry", "dspy: stance"]
+    },
+    {
+      "id": "OP-02",
+      "name": "PickInstructorForApiPydantic",
+      "trigger": "Closed API model (GPT/Claude) + Pydantic schema + retries acceptable.",
+      "action": [
+        "instructor.from_openai/from_anthropic + response_model=PydanticModel.",
+        "Set a finite max_retries.",
+        "Stream partial objects if real-time UI."
+      ],
+      "output": "Validate-time typed extraction with graceful auto-retry, no decoder access.",
+      "evidence": ["instructor: Pydantic validation + retry + streaming"]
+    },
+    {
+      "id": "OP-03",
+      "name": "PickOutlinesForLocalGrammar",
+      "trigger": "Local/open weights + must guarantee JSON-schema / regex / enum.",
+      "action": [
+        "outlines.generate.json / .regex / .choice over the local model.",
+        "Shape becomes guaranteed by construction; no shape-retry needed.",
+        "Layer a semantic check + stance on top."
+      ],
+      "output": "Decode-time shape guarantee; eliminates parse failures by construction.",
+      "evidence": ["outlines: JSON schema / regex / local models / Pydantic"]
+    },
+    {
+      "id": "OP-04",
+      "name": "PickGuidanceForInterleavedControl",
+      "trigger": "Local model + interleave free text and constrained spans + multi-step control flow.",
+      "action": [
+        "Write a Guidance program mixing gen() free spans and constrained spans.",
+        "Use Pythonic control flow for multi-step / fill-in-the-middle."
+      ],
+      "output": "Decode-time constraint only where needed, free text elsewhere, one program.",
+      "evidence": ["guidance: regex/grammars + multi-step Pythonic control flow"]
+    },
+    {
+      "id": "OP-05",
+      "name": "PickProviderNative",
+      "trigger": "Closed API model; want shape guarantee with zero new deps.",
+      "action": [
+        "Use provider structured outputs / tool_use strict-mode for the schema.",
+        "Optionally keep Instructor only for the Pydantic typing layer."
+      ],
+      "output": "Provider-side decode-time schema validity; collapses validate-time retries.",
+      "evidence": ["output-format-by-model: OpenAI/Anthropic native + strict-mode rows"]
+    },
+    {
+      "id": "OP-06",
+      "name": "WrapSemanticCheckInStance",
+      "trigger": "Shape already valid; need range / cross-field / business-rule checks.",
+      "action": [
+        "Grammar cannot express start<end or id-exists; add a validate-time check.",
+        "Choose stance: Assert (raise after N) or Suggest (log + continue)."
+      ],
+      "output": "Semantic correctness layered on top of any shape mechanism.",
+      "evidence": ["dspy: Assert/Suggest; arxiv 2312.13382"]
+    },
+    {
+      "id": "OP-07",
+      "name": "ChooseFailureStance",
+      "trigger": "Any enforcement layer can violate a check.",
+      "action": [
+        "Production default -> Suggest: retry-with-error then log + continue, finite cap.",
+        "Dev/test or unrecoverable value (DB id, money, irreversible action) -> Assert.",
+        "Never run an uncapped retry loop."
+      ],
+      "output": "Explicit, bounded behavior on violation; availability vs strictness traded deliberately.",
+      "evidence": ["dspy: 'Assert in development, Suggest in production'"]
+    },
+    {
+      "id": "OP-08",
+      "name": "DemoteOrDeferOnWrongContent",
+      "trigger": "Model emits valid-but-wrong values, or content is code/prose.",
+      "action": [
+        "Recognize enforcement cannot fix content quality.",
+        "If content is code/reasoning/prose -> defer to output-format-by-model.",
+        "If valid-but-wrong -> fix prompt/format, not the enforcement layer."
+      ],
+      "output": "Avoids burning cycles on an enforcement layer for a shape/prompt problem.",
+      "evidence": ["output-format-by-model: strict-mode != content quality; Aider 61%->20%"]
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D1",
+      "name": "Instructor retries burning tokens on an API model: switch to Outlines?",
+      "resolution": "Outlines is impossible on a closed API (no logits). Move shape-enforcement to provider native strict-mode, keep Instructor for typing, cap retries, flip to Suggest. If failures are valid-but-wrong content, it is a shape/prompt problem (output-format-by-model), not an enforcement problem.",
+      "ops": ["OP-02", "OP-05", "OP-07", "OP-08"]
+    },
+    {
+      "id": "D2",
+      "name": "Local 200k-row batch, no retry budget, ~0.3% rows malformed",
+      "resolution": "No per-row retry budget + expensive malformed output -> decode-time grammar. Local weights + flat JSON -> Outlines JSON-schema (Guidance only if interleaved free text). Shape failures go to zero by construction; layer a Suggest semantic check that quarantines violators instead of halting the batch.",
+      "ops": ["OP-01", "OP-03", "OP-06", "OP-07"]
+    }
+  ],
+  "anti_patterns": [
+    "A1 grammar-constraining when a retry suffices (over-engineering / impossible on API)",
+    "A2 Assert where Suggest is enough -> over-rejection of usable answers",
+    "A3 enforcing structure on code/prose content (valid JSON, degraded content)",
+    "A4 assuming provider strict-mode fixes content correctness",
+    "A5 unbounded retry loop -> availability outage",
+    "A6 stacking Outlines/Guidance on a closed API model (no logits)",
+    "A7 using a grammar for cross-field/semantic rules grammars cannot express",
+    "A8 picking the library before deciding strength + stance"
+  ],
+  "boundaries": [
+    "B1 content is code/reasoning/prose -> output-format-by-model, not this skill",
+    "B2 one token / one number / yes-no -> any parser, no enforcement lib",
+    "B3 no code consumes the output -> one-shot exploration, defer",
+    "B4 provider contract fixed -> enforcement mandatory, only stance remains to choose",
+    "B5 model emits valid-but-wrong values -> prompt/format fix, no enforcement layer helps"
+  ]
+}

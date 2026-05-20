@@ -1,0 +1,124 @@
+{
+  "skill": "module-shape-selection",
+  "version": "0.1.0",
+  "type": "enhancement-overlay",
+  "overlays": "dspy",
+  "cross_links": ["dspy", "dspy-sop"],
+  "fires_when": "a new LM-calling step/node is added to a pipeline",
+  "core_claim": "Reasoning shape is chosen by task structure, not by defaulting to CoT.",
+  "classify_questions": [
+    {
+      "id": "Q1",
+      "text": "Does a correct answer require visible intermediate reasoning?",
+      "yes_examples": ["multi-hop inference", "judgement", "trade-off weighing", "why-questions"],
+      "no_examples": ["lookup", "closed-set label", "format conversion", "extraction"]
+    },
+    {
+      "id": "Q2",
+      "text": "Does producing the answer require acting (tool/data/computation)?",
+      "tool_examples": ["search", "API call", "DB query", "retrieval", "calculator"],
+      "compute_examples": ["arithmetic", "counting", "unit conversion", "strict parsing"],
+      "none": "neither a tool nor deterministic computation is needed"
+    }
+  ],
+  "selection_card": [
+    {
+      "task_structure": "lookup / classify / extract / format-convert",
+      "Q1": false,
+      "Q2": "none",
+      "shape": "Predict",
+      "module": "dspy.Predict(Sig)",
+      "cost": "1 call, no reasoning tokens — lowest overhead",
+      "evidence": "dspy.ai/learn/programming/modules/; lib dspy Core Concepts Predict"
+    },
+    {
+      "task_structure": "analytic / judgement / multi-hop, no tool",
+      "Q1": true,
+      "Q2": "none",
+      "shape": "ChainOfThought",
+      "module": "dspy.ChainOfThought(Sig)",
+      "cost": "1 call + reasoning/rationale field — adds output tokens",
+      "evidence": "dspy.ai/learn/programming/modules/ (default); lib dspy Core Concepts CoT"
+    },
+    {
+      "task_structure": "tool-use: search / API / DB / retrieval / calculator",
+      "Q1": "any",
+      "Q2": "tool",
+      "shape": "ReAct",
+      "module": "dspy.ReAct(Sig, tools=[...])",
+      "cost": "N calls — think -> act -> observe loop",
+      "evidence": "dspy.ai/learn/programming/modules/; lib dspy Core Concepts ReAct"
+    },
+    {
+      "task_structure": "math / counting / unit conversion / strict parsing",
+      "Q1": "any",
+      "Q2": "compute",
+      "shape": "ProgramOfThought",
+      "module": "dspy.ProgramOfThought(Sig)",
+      "cost": "1 LM call -> generated code -> executed; answer grounded in execution",
+      "evidence": "dspy.ai/learn/programming/modules/; lib dspy Core Concepts PoT"
+    }
+  ],
+  "one_liner": {
+    "no_reasoning_no_tool": "Predict",
+    "reasoning_no_tool": "ChainOfThought",
+    "any_real_tool_or_action": "ReAct(tools=[...])",
+    "math_count_parse": "ProgramOfThought"
+  },
+  "tie_breakers": [
+    {"situation": "math but you trust mental arithmetic", "action": "still prefer PoT", "why": "code execution removes arithmetic hallucination"},
+    {"situation": "reasoning helps AND a tool exists", "action": "ReAct", "why": "ReAct does CoT inside its loop"},
+    {"situation": "hard analytic, single CoT unstable", "action": "dspy.MultiChainComparison or dspy.majority over N CoT samples", "why": "escalation, not a base shape"},
+    {"situation": "tool is a trivial pure function, no I/O", "action": "inline it; use CoT or Predict not ReAct", "why": "tool-less ReAct loop is wasted calls"}
+  ],
+  "measure_step": {
+    "rule": "A heavier shape is justified only if it beats the next-cheaper shape on 5-10 hand-picked examples.",
+    "procedure": ["run candidate and next-cheaper shape", "diff with dspy.inspect_history(n=3)", "keep heavier shape only if answers change for the better", "record decision here"],
+    "exit_criterion": "plausible outputs on 5+ examples AND no cheaper shape matches"
+  },
+  "dilemma_cases": [
+    {
+      "id": "A",
+      "name": "CoT on a simple classify wastes tokens",
+      "wrong_shape": "ChainOfThought",
+      "right_shape": "Predict",
+      "extractable_operation": "Closed-set classify/lookup defaults to Predict; promote to CoT only after Step 3 measures a label change."
+    },
+    {
+      "id": "B",
+      "name": "ReAct without tools is just CoT",
+      "wrong_shape": "ReAct(tools=[])",
+      "right_shape": "ChainOfThought (or Predict)",
+      "extractable_operation": "ReAct earns its loop only with at least one real I/O-bearing tool; tool-less ReAct downgrades to CoT."
+    },
+    {
+      "id": "C",
+      "name": "Math step: CoT prose vs PoT executed code",
+      "wrong_shape": "ChainOfThought",
+      "right_shape": "ProgramOfThought",
+      "extractable_operation": "Any step whose answer is a computed number/count/parse defaults to PoT; CoT prose is not executed code."
+    }
+  ],
+  "anti_patterns": [
+    "CoT-everywhere reflex (safe != free; reasoning field is a per-call token tax)",
+    "ReAct with no real tools (CoT plus loop overhead and failure modes)",
+    "CoT prose as a math guarantee (use PoT for computed answers)",
+    "Picking shape by feel after writing the prompt (shape is upfront/structural)",
+    "Conflating shape with optimizer (MIPROv2 cannot fix a wrong shape)",
+    "Predict on a genuinely analytic task (under-powering)",
+    "One shape for the whole pipeline (decide per node)"
+  ],
+  "boundaries": [
+    "optimizer/teleprompter choice -> dspy-sop",
+    "signature design -> dspy lib skill",
+    "metric design + compile cost -> dspy-sop",
+    "one-shot prompting -> out of scope",
+    "token-level output constraints (valid JSON) -> Outlines/Guidance"
+  ],
+  "cross_framework": {
+    "Predict": {"dspy": "dspy.Predict", "langchain": "LLMChain / direct model.invoke", "raw": "single prompt, answer directly"},
+    "ChainOfThought": {"dspy": "dspy.ChainOfThought", "langchain": "LLMChain with think-step-by-step prompt", "raw": "let's think step by step"},
+    "ReAct": {"dspy": "dspy.ReAct(tools=[...])", "langchain": "create_react_agent / ZERO_SHOT_REACT_DESCRIPTION", "raw": "manual Thought/Action/Observation loop"},
+    "ProgramOfThought": {"dspy": "dspy.ProgramOfThought", "langchain": "PythonREPLTool agent / LLMMathChain", "raw": "write Python then exec"}
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "skill": "context-scope-discipline",
+  "version": "0.1.0",
+  "type": "enhance-overlay",
+  "overlays": "generic token-budget advice + coder-agent working-file rule",
+  "crosslinks": ["repo-map", "session-state-hygiene"],
+  "extraction_notes": "Operations distilled from Aider's /add /read /drop /tokens command surface plus the ~25k distraction threshold, generalized to any coder harness with an editable working set. The defining move of this skill is the read-vs-edit distinction: breadth (finding files) is delegated to repo-map's read-only signature map; the write-set is reserved for files actually being edited this turn. Operation names are conventions; behaviors are framework-agnostic.",
+  "core_thresholds": {
+    "working_file_budget_tokens": 25000,
+    "threshold_nature": "signal/dilution (accuracy starts dropping past it), not a hard ceiling; lower for weaker models",
+    "write_set_target_files": 5,
+    "repo_map_alone_file_hit_rate": 0.703,
+    "evidence": [
+      "aider.chat/docs/troubleshooting/edit-errors.html",
+      "aider.chat/2024/05/22/swe-bench-lite.html"
+    ]
+  },
+  "candidates_considered": [
+    {
+      "name": "classify",
+      "kept": true,
+      "rationale": "The defining first step: ask 'will I edit this file's bytes this turn?' to sort into EDIT / READ-ONLY / NAVIGATE-ONLY. Without this the whole read-vs-edit distinction collapses."
+    },
+    {
+      "name": "locate-then-add",
+      "kept": true,
+      "rationale": "Backed by the 70.3% repo-map figure: locating files needs only the read-only map, never the write-set. Enforces find-then-edit two-step. Shared philosophy with repo-map skill."
+    },
+    {
+      "name": "add",
+      "kept": true,
+      "rationale": "Adding to the editable working set, deliberately restrained. Maps to Aider /add, Cursor @file, Claude Code Read-then-Edit."
+    },
+    {
+      "name": "read",
+      "kept": true,
+      "rationale": "Read-only reference layer (schema/config/CONVENTIONS). Distinct write permission from add. Aider /read."
+    },
+    {
+      "name": "budget-watch",
+      "kept": true,
+      "rationale": "Monitoring the ~25k budget is first-class given the dilution threshold. Maps to /tokens. Without monitoring the discipline is unfalsifiable."
+    },
+    {
+      "name": "drop",
+      "kept": true,
+      "rationale": "Reclaim budget on the file axis once a file's edits are done. Treats the working set as a sliding window, not an accumulator. The 'brave /drop' operation."
+    },
+    {
+      "name": "lean-on-map",
+      "kept": true,
+      "rationale": "Explicitly moves 'understand-only' files out of the write-set back to the read-only map. The antidote to the 'add to feel safe' instinct. Cross-links to repo-map."
+    },
+    {
+      "name": "split-task",
+      "kept": true,
+      "rationale": "When map-shrink and drop can't recover budget, the task is too wide. Split into multi-session subgoals. Maps to Aider token-limit guidance / subtree-only."
+    },
+    {
+      "name": "clear-history",
+      "kept": false,
+      "rationale": "Reclaims budget on the conversation-history axis, not the file axis. Belongs to session-state-hygiene; referenced as the complementary partner sharing the same 25k budget, but not owned here to keep the file-vs-history seam clean."
+    },
+    {
+      "name": "switch-larger-model",
+      "kept": false,
+      "rationale": "Explicitly flagged as an anti-pattern in SKILL.md: a larger context window does not change the ~25k dilution threshold. Excluded from the operation set on purpose."
+    },
+    {
+      "name": "build-repo-map",
+      "kept": false,
+      "rationale": "Building/refreshing the signature map is repo-map skill's territory. This skill only consumes the map (via lean-on-map / locate-then-add)."
+    }
+  ],
+  "dilemmas_extracted": [
+    {
+      "id": "understand-10-edit-2",
+      "summary": "Need to understand 10 files but only edit 2: add all (dilution) vs split into 2 write-set + 1-2 read + 6-7 navigate-via-map. Resolved by the read-vs-edit classification and the 70.3% figure."
+    },
+    {
+      "id": "budget-full-mid-task",
+      "summary": "Mid-task budget breaches 25k: cost-ordered tree — inspect /tokens, drop done files, shrink map, then (history axis) /clear via session-state-hygiene, finally split-task. File axis before history axis before task split."
+    },
+    {
+      "id": "wrong-file-edits",
+      "summary": "Model keeps editing wrong files: counter-intuitively NOT fixed by adding more files. Either the target isn't in the working set (add it) or there are too many unrelated files (drop them)."
+    }
+  ],
+  "anti_patterns": [
+    "/add whole directories",
+    "never /drop (working set as append-only heap)",
+    "dump entire repo into editable context",
+    "use the write-set for breadth/understanding instead of repo-map",
+    "switch to a larger-window model before trimming the working set",
+    "confuse /drop (file axis) with /clear (history axis)"
+  ],
+  "cross_framework_interfaces": {
+    "aider": "/add (editable), /read (read-only), /drop, /tokens — hard write boundary",
+    "claude_code": "Read tool (no read/write split; read==editable) — discipline is self-imposed via Grep/Glob for breadth, Read only for edit targets",
+    "cursor": "@file / @folder mentions — discipline is 'mention what you edit, not whole folders'",
+    "cline": "on-demand read_file tool-calls — working set is implicitly the set of files read; reading == budget cost"
+  }
+}

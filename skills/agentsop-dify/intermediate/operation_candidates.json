@@ -1,0 +1,187 @@
+{
+  "skill": "dify-sop",
+  "version": "1.0.0",
+  "framework_version": "1.14.x (May 2026)",
+  "research_mode": "DEEP",
+  "dimensions_covered": ["R1", "R2", "R3", "R4", "R5"],
+  "core_primitives": [
+    {
+      "name": "App",
+      "variants": ["Chatbot (legacy)", "Agent (legacy)", "Text Generator (legacy)", "Workflow", "Chatflow"],
+      "recommendation": "Workflow / Chatflow for long-lived projects; legacy types only for simplicity",
+      "source": "docs.dify.ai/en/use-dify/getting-started/key-concepts"
+    },
+    {
+      "name": "Graph Engine (graphon)",
+      "description": "Unified DAG runtime under all app types; v1.9+ queue-based scheduling",
+      "source": "github.com/langgenius/dify/discussions/26138"
+    },
+    {
+      "name": "Knowledge Base",
+      "description": "RAG pipeline: ingest → chunk → embed → index → retrieve → rerank",
+      "creation_paths": ["Quick create", "Knowledge Pipeline (v1.9+)", "External integration"],
+      "vector_stores": ["Qdrant (recommended)", "Weaviate", "Milvus", "Pinecone", "PGVector", "TiDB", "Chroma", "+6 more"],
+      "source": "deepwiki.com/langgenius/dify-docs/8.3-vector-database-configuration"
+    },
+    {
+      "name": "Plugin System",
+      "types": ["Models", "Tools", "Agent Strategies", "Extensions", "Bundles"],
+      "introduced": "v1.0",
+      "source": "dify.ai/blog/introducing-dify-plugins"
+    },
+    {
+      "name": "Monitoring",
+      "integrations": ["LangSmith", "Langfuse", "Arize Phoenix", "Opik"],
+      "trace_types": ["Workflows", "Messages", "Moderation", "Suggested Questions", "Dataset Retrieval", "Tools", "Generated Names"],
+      "source": "docs.dify.ai/guides/monitoring/integrate-external-ops-tools"
+    }
+  ],
+  "node_taxonomy": {
+    "flow": ["Start", "End", "Answer"],
+    "llm": ["LLM", "Question Classifier", "Parameter Extractor"],
+    "rag": ["Knowledge Retrieval"],
+    "logic": ["IF/ELSE", "Iteration", "Loop", "Variable Assigner", "Variable Aggregator"],
+    "code": ["Code (Python/Node.js)", "Template (Jinja2)"],
+    "external": ["HTTP Request", "Tool", "Agent Node"],
+    "data": ["List Operator", "Document Extractor"]
+  },
+  "decision_points": [
+    {
+      "id": "DP1",
+      "question": "Conversation context needed?",
+      "options": ["Chatflow (complex)", "Chatbot/Agent (simple)", "Workflow (no context, complex)", "Text-Gen (no context, simple)"],
+      "rule": "if multi-turn memory required → Chatflow family else Workflow family"
+    },
+    {
+      "id": "DP2",
+      "question": "Deterministic logic or LLM autonomous decisions?",
+      "options": ["Explicit Workflow", "Workflow + Agent Node (hybrid, recommended)", "Pure Agent app"],
+      "rule": "hybrid wins for most production cases; pure Agent only for simple dialogue"
+    },
+    {
+      "id": "DP3",
+      "question": "Cloud or self-host?",
+      "factors": ["compliance", "volume", "team size", "ops capacity", "data residency"],
+      "default": "Cloud Pro ($59) for teams ≤3; self-host for compliance / heavy volume / air-gapped"
+    },
+    {
+      "id": "DP4",
+      "question": "Dify built-in KB or external vector store?",
+      "rule": "single app / single dataset → built-in; multi-app share / extreme RAG / >100M chunks → external"
+    },
+    {
+      "id": "DP5",
+      "question": "Tool extension method?",
+      "options": ["HTTP Request node (one-off)", "Tool plugin (reusable)", "Code node (custom logic)", "Agent Strategy plugin (reasoning loop)"]
+    },
+    {
+      "id": "DP6",
+      "question": "Workflow getting unwieldy — what to do?",
+      "thresholds": {
+        "<20 nodes flat": "stay in Dify, rename + Note",
+        "20-40 nodes with sub-procedures": "split into sub-workflows as tools",
+        ">40 nodes or >100-line Code": "externalize logic to microservice"
+      }
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "C1",
+      "title": "Workflow unmaintainable — split or rewrite?",
+      "sources": ["github.com/langgenius/dify/issues/28245", "memo.d.foundation/breakdown/dify"]
+    },
+    {
+      "id": "C2",
+      "title": "Visual ceiling hit — Dify or LangGraph/code?",
+      "sources": ["github.com/langgenius/dify/issues/21455", "github.com/langgenius/dify/issues/24791", "blog.elest.io/dify-vs-langflow-vs-flowise"]
+    },
+    {
+      "id": "C3",
+      "title": "Self-host vs Cloud — when is ops cost worth it?",
+      "sources": ["architjn.com/blog/dify-cloud-pricing", "github.com/langgenius/dify/discussions/32254"]
+    },
+    {
+      "id": "C4",
+      "title": "Dify Knowledge vs separate vector store?",
+      "sources": ["deepwiki.com/langgenius/dify-docs/8.3-vector-database-configuration", "sider.ai/blog/ai-tools/dify-vs-ragflow", "memo.d.foundation/breakdown/dify"]
+    },
+    {
+      "id": "C5",
+      "title": "Agent app vs Workflow+Agent Node vs explicit Workflow?",
+      "sources": ["zediot.com/blog/dify-difference-between-agent-and-workflow", "dify.ai/blog/dify-agent-node-introduction-when-workflows-learn-autonomous-reasoning"]
+    },
+    {
+      "id": "C6",
+      "title": "Visual builder feels constrained — is Dify still right?",
+      "sources": ["zhuanlan.zhihu.com/p/1947389040702781389"]
+    }
+  ],
+  "anti_patterns": [
+    "Mega-workflow with 30+ nodes (canvas lag, hard to debug)",
+    "Code node carrying 100+ lines of business logic",
+    "Long-term project built on legacy Chatbot/Agent app types",
+    "No DSL exported to git for version control",
+    "No external LLMOps wired (Langfuse/Phoenix/LangSmith)",
+    "Workspace-shared model API keys causing cost-accounting issues",
+    "Skipping retrieval testing on knowledge base",
+    "Long agent streams (>120s) without timeout tuning",
+    "Beta upgrade without backup (v1.9 destroys beta KB pipelines)",
+    "Direct container port exposed to internet (no reverse proxy)",
+    "Container-internal PostgreSQL in production",
+    "Agent app for tasks with predictable path"
+  ],
+  "performance_boundaries": {
+    "qps_per_pod": "~10 (1 CPU 2GB)",
+    "plugin_daemon_timeout_default": "300s",
+    "agent_stream_with_logs_disconnect": "120s",
+    "workflow_max_execution_time": "configurable env var",
+    "cloud_storage_quota": "5MB Sandbox / 5GB Pro / 20GB Team"
+  },
+  "not_for": [
+    "Model training / fine-tuning",
+    "General workflow automation with mostly non-AI integrations",
+    "Extreme RAG quality (KG-RAG, deep parsing) — use RAGFlow",
+    "Pause-and-wait-for-user / approval flows — use LangGraph",
+    "High-frequency real-time inference router — use vLLM + custom gateway",
+    "Heavy-state agent runtime with time-travel — use LangGraph",
+    "Sub-second latency endpoints",
+    "Code node as microservice"
+  ],
+  "ecosystem_positioning": {
+    "vs_Flowise": "Dify = production SaaS; Flowise = minimal chatbot editor (1GB RAM)",
+    "vs_LangFlow": "Dify = own framework, multi-tenant; LangFlow = LangChain-coupled, exports code",
+    "vs_Coze": "Coze = ByteDance hosted only + Feishu/Lark; Dify = open source, self-host",
+    "vs_RAGFlow": "Dify = platform with RAG; RAGFlow = specialized RAG engine with thin UI",
+    "vs_n8n": "Dify = AI-native; n8n = general automation with 400+ integrations and AI as plugin",
+    "vs_LangGraph": "Dify = visual platform; LangGraph = code framework with rich state machine",
+    "vs_LlamaIndex": "Dify = app platform; LlamaIndex = data/RAG framework. Often combined via External KB",
+    "vs_CrewAI": "Dify = workflow + visual; CrewAI = role-based multi-agent in code. Often combined"
+  },
+  "surprising_findings": [
+    "Dify's 'low-code' claim is contested — Chinese community openly argues that to build a real agent you still need Python (zhuanlan.zhihu.com/p/1947389040702781389), making Dify's true value 'scaffolding compression' not 'no-code'",
+    "Pause-and-wait-for-user is a hard not-supported (issue #21455 closed 'not planned') — surprising for a 'production' platform claiming agent workflows. Forces hybrid LangGraph architecture for approval flows",
+    "Per-node DB queries cap throughput at ~10 QPS per pod regardless of model latency — the bottleneck is Dify's own engine, not the LLM (memo.d.foundation/breakdown/dify)",
+    "All Dify editions (Community/Premium/Enterprise) use the SAME Docker images — Enterprise features are unlocked purely by env-var flags pointing at LangGenius's API (discussions/32254)",
+    "The platform is honest about its limits in its own GitHub discussions — team transparently lists bottlenecks and roadmap, which is unusual for a vendor-backed open source project"
+  ],
+  "key_sources": [
+    "https://github.com/langgenius/dify",
+    "https://docs.dify.ai/",
+    "https://marketplace.dify.ai/",
+    "https://dify.ai/blog/",
+    "https://memo.d.foundation/breakdown/dify",
+    "https://blog.elest.io/dify-vs-langflow-vs-flowise-which-open-source-llm-app-builder-actually-ships-to-production/",
+    "https://jimmysong.io/blog/open-source-ai-agent-workflow-comparison/",
+    "https://sider.ai/blog/ai-tools/dify-vs-ragflow-which-rag-platform-should-you-build-on-in-2025",
+    "https://hellodify.com/en/docs/workflow/workflow-chatflow-difference",
+    "https://zediot.com/blog/dify-difference-between-agent-and-workflow/",
+    "https://learnwithparam.com/blog/batteries-included-rag-platforms-dify-ragflow-onyx",
+    "https://zhuanlan.zhihu.com/p/1947389040702781389",
+    "https://github.com/langgenius/dify/issues/21455",
+    "https://github.com/langgenius/dify/issues/28245",
+    "https://github.com/langgenius/dify/discussions/26138",
+    "https://github.com/langgenius/dify/discussions/27053",
+    "https://github.com/langgenius/dify/discussions/32254",
+    "https://architjn.com/blog/dify-cloud-pricing-plans-free-tier-when-to-self-host"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "framework": "CrewAI",
+  "version_captured": "1.14.5 (2026-05-18)",
+  "capture_date": "2026-05-19",
+  "operations": [
+    {
+      "id": "OP-1",
+      "name": "Decide whether to use CrewAI",
+      "trigger": "User describes a task involving team/collaboration/roles or explicitly mentions CrewAI",
+      "action": "Run Phase 0 decision tree: (1) multi-role check; (2) control-flow check. Output: use-CrewAI-Sequential | use-CrewAI-Flow | switch-framework",
+      "output": "Framework decision + rationale",
+      "evidence": ["docs.crewai.com/en/concepts/agents", "github.com/crewAIInc/crewAI README", "daily.dev AI agents guide"],
+      "tags": ["entry-gate", "framework-selection"]
+    },
+    {
+      "id": "OP-2",
+      "name": "Design agent role/goal/backstory triplet",
+      "trigger": "CrewAI selected; modeling each agent",
+      "action": "For each agent: write seniority-bearing role title; write goal with template vars + verifiable criteria; write backstory (2-4 sentences) with experience, biases, taboos. Set allow_delegation=False, max_iter=8, verbose=True by default",
+      "output": "agents.yaml or list of Agent() calls",
+      "evidence": ["docs.crewai.com/en/concepts/agents"],
+      "tags": ["design", "prompt-engineering"]
+    },
+    {
+      "id": "OP-3",
+      "name": "Write Tasks with explicit contracts",
+      "trigger": "Agents designed; defining work units",
+      "action": "description = WHAT (not how); expected_output = verifiable assertion; context=[prior_task_refs] explicit; optional output_pydantic for structured outputs",
+      "output": "tasks.yaml or list of Task() calls",
+      "evidence": ["docs.crewai.com/en/concepts/tasks"],
+      "tags": ["design", "contracts"]
+    },
+    {
+      "id": "OP-4",
+      "name": "Select Process",
+      "trigger": "Assembling Crew",
+      "action": "Default Process.sequential. Use Process.hierarchical ONLY with custom manager_agent (never bare manager_llm). If routing logic fits in 5 lines of Python, use Flow instead",
+      "output": "process parameter + (optional) manager_agent",
+      "evidence": ["docs.crewai.com/en/learn/hierarchical-process", "towardsdatascience.com Manager-Worker fails", "github.com/crewAIInc/crewAI/discussions/1220"],
+      "tags": ["control-flow", "high-risk"]
+    },
+    {
+      "id": "OP-5",
+      "name": "Decide on Memory",
+      "trigger": "Assembling Crew; checking context requirements",
+      "action": "Intra-kickoff context => use task.context (memory OFF). Cross-kickoff persistence => memory=True. Production HF => Mem0 backend. Debug period => always OFF",
+      "output": "memory parameter setting",
+      "evidence": ["docs.crewai.com/en/concepts/memory", "mem0.ai/blog/crewai-memory-production-setup-with-mem0"],
+      "tags": ["state-management"]
+    },
+    {
+      "id": "OP-6",
+      "name": "Install observability and guardrails before production",
+      "trigger": "Pre-deployment checklist",
+      "action": "Attach mlflow.crewai.autolog() OR Maxim/Langfuse/Datadog. Set max_rpm, per-agent max_iter, outer kickoff timeout. Pass step_callback for action logs",
+      "output": "Observable, bounded Crew",
+      "evidence": ["docs.crewai.com/en/observability/overview"],
+      "tags": ["production-readiness", "observability"]
+    },
+    {
+      "id": "OP-7",
+      "name": "Upgrade Crew to Flow when needed",
+      "trigger": "Conditional routing required OR multiple Crews must chain OR hierarchical proven uncontrollable",
+      "action": "Subclass Flow[StateModel]. Use @start() entry; @listen(prior) for branches. Each step can be plain Python, single LLM call, or crew.kickoff()",
+      "output": "Flow class with deterministic spine + autonomous Crews per node",
+      "evidence": ["docs.crewai.com/en/concepts/flows", "community.crewai.com/t/5710"],
+      "tags": ["control-flow", "scaling"]
+    },
+    {
+      "id": "OP-8",
+      "name": "Scope tools per-role",
+      "trigger": "Multiple tools available across multiple agents",
+      "action": "Define tools once (BaseTool/@tool). Bind each agent only to role-relevant tools. Avoid blanket tool sharing",
+      "output": "Per-agent tools=[...] lists",
+      "evidence": ["docs.crewai.com/en/concepts/tools", "community.crewai.com/t/tool-best-practice-assign-to-agent-or-task/5919"],
+      "tags": ["design"]
+    },
+    {
+      "id": "OP-9",
+      "name": "Default allow_delegation=False on all worker agents",
+      "trigger": "Agent creation, especially in hierarchical mode",
+      "action": "Workers always allow_delegation=False; only manager_agent (if any) gets delegation. Ensure at least one agent in chain has it disabled to break cycles",
+      "output": "Delegation-loop-safe Crew",
+      "evidence": ["github.com/crewAIInc/crewAI/issues/330", "azguards.com delegation-ping-pong", "inkog.io/glossary/crewai-infinite-loop"],
+      "tags": ["safety", "high-risk"]
+    },
+    {
+      "id": "OP-10",
+      "name": "Split agents on persistent failure modes",
+      "trigger": "Agent fails to converge after 3-5 iterations on real cases",
+      "action": "Classify failure: style inconsistency => fix backstory; missing checklist items / factual errors / format violations => split into specialist + reviewer with structured rubric",
+      "output": "Refactored crew with sharper role separation",
+      "evidence": ["daily.dev AI agents guide", "anti-patterns Medium article"],
+      "tags": ["iteration", "design"]
+    }
+  ],
+  "anti_patterns_summary": [
+    "AP-1 Agent inflation (>5 agents without strong justification)",
+    "AP-2 Anemic backstory (template/generic persona)",
+    "AP-3 Default hierarchical manager_llm in production",
+    "AP-4 Global allow_delegation=True",
+    "AP-5 No observability before production"
+  ],
+  "dilemma_cases_summary": [
+    "DC-1 Agent looping: fix prompt vs split agent",
+    "DC-2 Sequential vs Hierarchical: when is manager overhead worth it",
+    "DC-3 Tools: shared all-agents vs role-scoped",
+    "DC-4 Memory: default-off vs enable",
+    "DC-5 allow_delegation: on vs off (ping-pong risk)"
+  ],
+  "key_quotes": [
+    {"text": "An agent needs agency, otherwise it's just another script.", "source": "João Moura, softwareengineeringdaily.com 2025"},
+    {"text": "Role, goal, and backstory are required and shape the agent's behavior.", "source": "docs.crewai.com/en/concepts/agents"},
+    {"text": "Single-agent is right for approximately 80% of cases.", "source": "daily.dev AI agents guide"},
+    {"text": "Crews enable autonomous collaboration; Flows offer precise, event-driven control.", "source": "docs.crewai.com/en/concepts/flows"}
+  ]
+}

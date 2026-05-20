@@ -1,0 +1,140 @@
+{
+  "skill": "llm-engine-selection",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "Decision matrix lookup by (hardware, workload)",
+      "trigger": "User asks 'what should we serve X on?' and supplies hardware + workload constraints.",
+      "action": [
+        "Apply Step-1 hard filters (no NVIDIA -> drop TensorRT-LLM; OSS-only -> drop TensorRT-LLM/TGI; etc.).",
+        "Apply Step-2 workload-to-strength mapping (shared-prefix -> SGLang; throughput+NVIDIA+budget -> TensorRT-LLM; default -> vLLM).",
+        "Sanity-check hardware topology (PCIe-only -> avoid large TP).",
+        "Return primary engine + fallback + the constraint vector that justified the pick."
+      ],
+      "output": "Primary engine choice, fallback choice, constraint vector justifying both.",
+      "evidence": [
+        "https://www.yottalabs.ai/post/best-llm-inference-engines-in-2026-vllm-tensorrt-llm-tgi-and-sglang-compared",
+        "https://aimadetools.com/blog/vllm-vs-ollama-vs-llamacpp-vs-tgi/",
+        "https://developers.redhat.com/articles/2025/09/30/vllm-or-llamacpp-choosing-right-llm-inference-engine-your-use-case"
+      ]
+    },
+    {
+      "id": "OP-2",
+      "name": "Detect wrong-tool-for-the-job symptoms",
+      "trigger": "Team is using engine E but reports low throughput, unsupported model, structured-output workarounds, or single-user pain on a multi-user engine.",
+      "action": [
+        "Map symptom to engine mismatch (vLLM stuck on PCIe-TP=4 -> switch to TP=2 + replicas or PP; vLLM with heavy guided_decoding -> A/B SGLang; TGI deployment -> plan migration; Ollama at >=10 concurrent users -> graduate to vLLM; llama.cpp serving many users -> graduate to vLLM).",
+        "Produce migration recommendation with cited reason."
+      ],
+      "output": "Migration or topology-change recommendation.",
+      "evidence": [
+        "https://www.yottalabs.ai/post/best-llm-inference-engines-in-2026-vllm-tensorrt-llm-tgi-and-sglang-compared",
+        "https://contracollective.com/blog/llama-cpp-vs-mlx-ollama-vllm-apple-silicon-2026",
+        "https://developers.redhat.com/articles/2026/03/09/5-steps-triage-vllm-performance"
+      ]
+    },
+    {
+      "id": "OP-3",
+      "name": "Quantization-driven engine pick",
+      "trigger": "Team has weights in a specific quantization format already (GGUF / AWQ / GPTQ / FP8 / MLX).",
+      "action": [
+        "GGUF only -> llama.cpp / Ollama / LM Studio (vLLM GGUF is experimental).",
+        "AWQ / GPTQ -> vLLM (first-class), SGLang (good), TensorRT-LLM (engine rebuild required).",
+        "FP8 on Hopper/Ada+ -> vLLM, SGLang, TensorRT-LLM all support; near-lossless.",
+        "MLX format -> MLX / mlx-lm only."
+      ],
+      "output": "Engine shortlist gated by available weights format.",
+      "evidence": [
+        "https://docs.vllm.ai/en/stable/configuration/conserving_memory/",
+        "https://arxiv.org/abs/2411.02355"
+      ]
+    },
+    {
+      "id": "OP-4",
+      "name": "Structured-output workload routing",
+      "trigger": ">=30% of requests need JSON / regex / grammar-constrained output, or the project is an agent platform with tool-call state machines.",
+      "action": [
+        "Default to SGLang (RadixAttention + native state machines beat vLLM guided_decoding at scale).",
+        "If staying on vLLM, plan for throughput hit on constrained requests; consider xgrammar backend.",
+        "If model not in SGLang's coverage, fall back to vLLM and tune."
+      ],
+      "output": "SGLang as primary; vLLM as fallback if model coverage gaps.",
+      "evidence": [
+        "https://sglang.ai/blog",
+        "https://explore.n1n.ai/blog/llm-inference-engine-comparison-vllm-tgi-tensorrt-sglang-2026-03-13"
+      ]
+    },
+    {
+      "id": "OP-5",
+      "name": "Apple Silicon / edge routing",
+      "trigger": "Target platform is M-series Mac, iPhone/iPad, Jetson, Raspberry Pi, or other ARM/edge.",
+      "action": [
+        "M-series Mac, dev: Ollama (best UX) or MLX (best perf).",
+        "M-series Mac, production server: MLX or llama.cpp Metal. Do NOT ship vLLM Metal/MPS (experimental).",
+        "Jetson / ARM Linux: llama.cpp, or TensorRT-LLM if Jetson Orin.",
+        "CPU-only x86 server: llama.cpp with AVX-512; single-digit users only."
+      ],
+      "output": "Apple/edge-specific engine pick with required weights format (GGUF or MLX).",
+      "evidence": [
+        "https://contracollective.com/blog/llama-cpp-vs-mlx-ollama-vllm-apple-silicon-2026",
+        "https://aimadetools.com/blog/vllm-vs-ollama-vs-llamacpp-vs-tgi/"
+      ]
+    },
+    {
+      "id": "OP-6",
+      "name": "Multi-tier deployment design",
+      "trigger": "Project has both interactive (premium, latency-bound) and batch (free, throughput-bound) tiers.",
+      "action": [
+        "Premium / interactive: TensorRT-LLM (if NVIDIA-locked + budget) OR vLLM FP8 + prefix caching.",
+        "Free / batch: vLLM AWQ-4 (high concurrency, lower cost) OR SGLang for prefix-sharing.",
+        "Dev / staging: Ollama (fast model swaps).",
+        "Edge / on-device client: llama.cpp (GGUF).",
+        "Front the whole thing with a single OpenAI-compatible gateway."
+      ],
+      "output": "Heterogeneous 2-3 engine plan with one API gateway.",
+      "evidence": [
+        "https://www.yottalabs.ai/post/best-llm-inference-engines-in-2026-vllm-tensorrt-llm-tgi-and-sglang-compared",
+        "https://contracollective.com/blog/llama-cpp-vs-mlx-ollama-vllm-apple-silicon-2026"
+      ]
+    },
+    {
+      "id": "OP-7",
+      "name": "Bench-then-pick when the choice is close",
+      "trigger": "Two engines both pass hard filters and workload mapping; team disagrees on which to pick.",
+      "action": [
+        "Run a 1-day benchmark with replayed traffic.",
+        "Measure P50+P99 TTFT, P50+P99 ITL, tokens/s/GPU, $/M-tokens, peak memory, model-load time.",
+        "Use real production ISL/OSL; do NOT use MMLU-style synthetic prompts.",
+        "Document the constraint vector + numbers + the threshold that would flip the decision."
+      ],
+      "output": "Decision memo with constraint vector, measured numbers, decision-flip threshold.",
+      "evidence": [
+        "https://developers.redhat.com/articles/2026/03/09/5-steps-triage-vllm-performance",
+        "https://spheron.network/blog/vllm-vs-tensorrt-llm-vs-sglang-benchmarks"
+      ]
+    },
+    {
+      "id": "OP-8",
+      "name": "License / compliance filter",
+      "trigger": "Procurement, security, or legal review of the inference path.",
+      "action": [
+        "TensorRT-LLM = NVIDIA proprietary -> eliminate if shop forbids closed-source on the inference path.",
+        "TGI = HFOIL Apache-restricted -> check commercial-use clauses for some derived models.",
+        "vLLM / SGLang / llama.cpp / Ollama / MLX = Apache/MIT -> permissive."
+      ],
+      "output": "License-compliance shortlist.",
+      "evidence": [
+        "https://github.com/NVIDIA/TensorRT-LLM (license file)",
+        "https://github.com/vllm-project/vllm (license file)"
+      ]
+    }
+  ],
+  "decision_axes": {
+    "hardware": ["NVIDIA NVLink", "NVIDIA PCIe-only", "AMD", "Intel Gaudi", "TPU", "Apple Silicon", "CPU only", "Jetson / ARM edge"],
+    "workload": ["production multi-user mixed", "shared-prefix heavy", "structured-output heavy", "offline batch", "single-user latency", "edge single-user", "multi-LoRA SaaS"],
+    "constraint": ["OSS-permissive only", "vendor-lock OK", "eng-budget 1d", "eng-budget 2wk", "P50 SLA", "P99 SLA", "on-prem air-gapped"],
+    "model": ["Llama / Qwen / Mistral mainstream", "Mixtral / DeepSeek MoE", "Mamba / hybrid", "multimodal (LLaVA / Qwen-VL)", "small <=7B", "medium 13-32B", "large 70B+"]
+  }
+}

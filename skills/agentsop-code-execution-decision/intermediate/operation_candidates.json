@@ -1,0 +1,111 @@
+{
+  "skill": "code-execution-decision",
+  "version": "0.1.0",
+  "type": "enhancement-overlay",
+  "overlays": "dspy (ProgramOfThought mechanism; missing decision rubric)",
+  "core_thesis": "LMs are unreliable calculators but reliable coders. Emit code when the answer needs determinism/precision; reason in prose when it needs judgment.",
+  "failure_asymmetry": {
+    "under_coding": "reasoning through a computation -> silent plausible-wrong number",
+    "over_coding": "sandboxing a judgment task -> loud, cheap wasted round-trip",
+    "default_lean": "when genuinely uncertain AND a verifiable core exists, lean toward code"
+  },
+  "operation_candidates": [
+    {
+      "id": "op1",
+      "name": "computable-vs-judgment gate",
+      "trigger": "any step about to be reasoned",
+      "action": "ask: single verifiable answer a program could check? yes->code, no->prose, mixed->decompose",
+      "output": "routing decision",
+      "evidence": "PoT premise arXiv 2211.12588; DSPy ChainOfThought vs ProgramOfThought",
+      "kept": true
+    },
+    {
+      "id": "op2",
+      "name": "decompose mixed steps",
+      "trigger": "step contains both a number and a narrative",
+      "action": "split into computable sub-step (code) + judgment sub-step (prose)",
+      "output": "two routed sub-steps",
+      "evidence": "mirrors output-format-by-model mixed-content split (Case B)",
+      "kept": true
+    },
+    {
+      "id": "op3",
+      "name": "sandbox choice",
+      "trigger": "decided to emit code",
+      "action": "pick interpreter by trust + capability (DSPy PoT / OpenAI Code Interpreter / Anthropic code-exec VM / LangChain PythonREPLTool=unsandboxed)",
+      "output": "chosen runtime",
+      "evidence": "DSPy modules docs; LangChain PythonREPLTool docs; cross-link output-format-by-model for wire shape",
+      "kept": true
+    },
+    {
+      "id": "op4",
+      "name": "result-back-into-LM",
+      "trigger": "code produced a value",
+      "action": "inject stdout/return value into next LM turn so model narrates/uses it",
+      "output": "LM-consumed result",
+      "evidence": "PoT design: code computes, LM contextualizes",
+      "kept": true
+    },
+    {
+      "id": "op5",
+      "name": "error retry (bounded)",
+      "trigger": "code raised a traceback",
+      "action": "feed error to LM, regenerate, re-run; cap at max_iters (~3) then fall back",
+      "output": "fixed code or graceful fallback",
+      "evidence": "DSPy ProgramOfThought max_iters; cross-link test-fix-loop",
+      "kept": true
+    },
+    {
+      "id": "op6",
+      "name": "precision escalation",
+      "trigger": "prose answer involves multi-step arithmetic",
+      "action": "re-route the arithmetic to code even if prose started it",
+      "output": "code-verified number",
+      "evidence": "LMs unreliable calculators; PAL arXiv 2211.10435",
+      "kept": true
+    },
+    {
+      "id": "op7",
+      "name": "over-coding veto",
+      "trigger": "about to sandbox a judgment task",
+      "action": "stop: no deterministic core -> reasoning not code",
+      "output": "prose reasoning, no sandbox call",
+      "evidence": "Case B; avoids wasted round-trip",
+      "kept": true
+    },
+    {
+      "id": "op8-discarded",
+      "name": "always-code-then-verify",
+      "trigger": "any answer",
+      "action": "emit code for every step then verify",
+      "output": "n/a",
+      "evidence": "none",
+      "kept": false,
+      "reason_discarded": "this IS the over-coding anti-pattern; folded into op7 veto instead of being its own op"
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "A",
+      "title": "arithmetic in prose hallucinates -> PoT fixes (under-coding)",
+      "extractable_op": "op6 - multi-step arithmetic in prose is a smell; re-route to code"
+    },
+    {
+      "id": "B",
+      "title": "over-coding a judgment task wastes a sandbox round-trip",
+      "extractable_op": "op7 - no verifiable answer -> no code; veto the round-trip"
+    },
+    {
+      "id": "C",
+      "title": "mixed step (summary + total) -> decompose",
+      "extractable_op": "op2 - one task != one strategy; gate per step"
+    }
+  ],
+  "cross_links": ["output-format-by-model", "test-fix-loop", "dspy"],
+  "frameworks_compared": [
+    "DSPy ProgramOfThought",
+    "OpenAI Code Interpreter",
+    "Anthropic code-execution tool",
+    "LangChain PythonREPLTool"
+  ]
+}

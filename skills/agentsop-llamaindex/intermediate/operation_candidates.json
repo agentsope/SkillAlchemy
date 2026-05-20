@@ -1,0 +1,117 @@
+{
+  "project": "LlamaIndex",
+  "version_observed": "v0.10+ (Settings API), Workflows 1.0 (2025-06-30), LlamaParse v2",
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "BaselineVectorIndex",
+      "trigger": "First-pass RAG over a new document corpus, unknown retrieval quality",
+      "action": "Build VectorStoreIndex with SentenceSplitter(chunk_size=1024, chunk_overlap=20), default top_k=2-5, default response synthesizer; ship to eval bench before tuning",
+      "output": "Working RAG endpoint + retrieval-quality baseline (MRR, hit-rate, faithfulness, relevancy)",
+      "evidence": "developers.llamaindex.ai/python/framework/optimizing/basic_strategies/basic_strategies/ ; llamaindex.ai/blog/evaluating-the-ideal-chunk-size-for-a-rag-system-using-llamaindex-6207e5d3fec5"
+    },
+    {
+      "id": "OP-02",
+      "name": "TuneChunkSize",
+      "trigger": "Faithfulness < target OR retrieved chunks truncated / incomplete",
+      "action": "Sweep chunk_size in {256, 512, 1024, 2048}, hold overlap at ~10-20%, re-evaluate faithfulness + relevancy + latency; default land at 1024 for prose, 80-160 tokens for code",
+      "output": "Optimal chunk_size pinned to index metadata; embedding model version locked alongside",
+      "evidence": "llamaindex.ai/blog/evaluating-the-ideal-chunk-size-for-a-rag-system-using-llamaindex-6207e5d3fec5 ; developers.llamaindex.ai/python/framework/optimizing/rag_failure_mode_checklist/ (failure #2)"
+    },
+    {
+      "id": "OP-03",
+      "name": "AddReranker",
+      "trigger": "Top-1 wrong but relevant docs appear in top-k; retrieval-hallucination symptoms",
+      "action": "Wrap retriever with CohereRerank or SentenceTransformerRerank; widen retrieval top_k to 20-50, narrow to top_n=3-5 after rerank",
+      "output": "Faithfulness +5-15pp on noisy corpora; lower context-window pressure",
+      "evidence": "developers.llamaindex.ai/python/framework/optimizing/rag_failure_mode_checklist/ (failure #1, #10) ; medium reranking guides"
+    },
+    {
+      "id": "OP-04",
+      "name": "AddHybridBM25",
+      "trigger": "Queries contain exact identifiers, error codes, SKUs, code symbols, rare jargon; dense-only misses them",
+      "action": "Add BM25Retriever via QueryFusionRetriever or vendor hybrid (Qdrant/Milvus alpha tuning); tune alpha per query type",
+      "output": "Recall lift on lexical-identity queries without sacrificing semantic queries",
+      "evidence": "developers.llamaindex.ai (BM25 retriever docs) ; llamaindex.ai/blog/llamaindex-enhancing-retrieval-performance-with-alpha-tuning-in-hybrid-search-in-rag-135d0c9b8a00"
+    },
+    {
+      "id": "OP-05",
+      "name": "DecoupleChunkScope",
+      "trigger": "Tension between precise embeddings (small chunks) and rich context (large chunks)",
+      "action": "Use HierarchicalNodeParser + AutoMergingRetriever OR SentenceWindowNodeParser; embed small, return large",
+      "output": "Precision-recall pareto improvement; LLM gets surrounding context that small chunks would have lost",
+      "evidence": "developers.llamaindex.ai (AutoMergingRetriever, HierarchicalNodeParser docs) ; restack.io hierarchical node parser"
+    },
+    {
+      "id": "OP-06",
+      "name": "RouteByQueryType",
+      "trigger": "Corpus serves heterogeneous tasks (summary vs lookup vs comparison) from one chat box",
+      "action": "Build per-task QueryEngines (SummaryIndex for digest, VectorStoreIndex for lookup, SubQuestionQueryEngine for compare) + RouterQueryEngine with LLM or Pydantic selector",
+      "output": "Each query type lands on the structurally correct retrieval primitive",
+      "evidence": "developers.llamaindex.ai router query engine docs ; deeplearning.ai Building Agentic RAG with Llamaindex"
+    },
+    {
+      "id": "OP-07",
+      "name": "DecomposeMultiHop",
+      "trigger": "Compare/contrast queries; queries needing facts from >1 document",
+      "action": "Use SubQuestionQueryEngine to decompose -> dispatch sub-questions to sub-engines -> synthesize",
+      "output": "Multi-hop answers that single retrieval cannot assemble",
+      "evidence": "developers.llamaindex.ai sub_question query engine docs"
+    },
+    {
+      "id": "OP-08",
+      "name": "IngestionWithDocstore",
+      "trigger": "Documents will be updated/deleted over time; production system",
+      "action": "Use IngestionPipeline with docstore + vector_store; pick upsert strategy (DUPLICATES_ONLY / UPSERTS / UPSERTS_AND_DELETE) based on lifecycle",
+      "output": "Idempotent re-ingestion; no duplicate vectors; deletion propagation",
+      "evidence": "developers.llamaindex.ai/python/framework/module_guides/loading/ingestion_pipeline/ ; failure_mode_checklist #3"
+    },
+    {
+      "id": "OP-09",
+      "name": "MetadataFilters",
+      "trigger": "Multi-tenant corpus; cross-contamination between sub-collections; access control",
+      "action": "Inject structured metadata at ingestion (tenant, doc_type, date); use MetadataFilters or auto-retrieval at query time",
+      "output": "Hard isolation between tenants; targeted retrieval without re-ranking cost",
+      "evidence": "failure_mode_checklist #7 ; basic_strategies metadata filters"
+    },
+    {
+      "id": "OP-10",
+      "name": "EvalLoop",
+      "trigger": "Any non-trivial RAG; pre-deploy AND continuously in production",
+      "action": "Generate eval QA pairs via LlamaIndex DatasetGenerator; run FaithfulnessEvaluator + RelevancyEvaluator + RetrieverEvaluator (MRR/hit-rate); gate changes",
+      "output": "Quantitative regression test for every change to chunking / embedding / retriever / prompt",
+      "evidence": "developers.llamaindex.ai evaluating module guide ; cookbook.openai.com evaluate_rag_with_llamaindex"
+    },
+    {
+      "id": "OP-11",
+      "name": "LockGlobalSettings",
+      "trigger": "Multiple modules construct LLM/embed_model independently; risk of config drift",
+      "action": "Pin Settings.llm and Settings.embed_model once in app bootstrap; never inline override",
+      "output": "Eliminates embedding-mismatch class of bug (failure #4 / #5)",
+      "evidence": "developers.llamaindex.ai migrating ServiceContext -> Settings ; failure_mode_checklist #4"
+    },
+    {
+      "id": "OP-12",
+      "name": "AgenticWorkflow",
+      "trigger": "Need loops, tool calls, multi-step reasoning over retrieval; DAG is insufficient",
+      "action": "Use Workflows 1.0 event-driven steps (NOT deprecated QueryPipeline); wrap query engines as tools for FunctionAgent/ReActAgent",
+      "output": "Cycle-capable agentic loop with retrieval as one tool among many",
+      "evidence": "llamaindex.ai/blog/announcing-workflows-1-0-a-lightweight-framework-for-agentic-systems ; workflow docs"
+    }
+  ],
+  "dilemmas_collected": [
+    "chunk-size precision-vs-context",
+    "hybrid (BM25+dense) vs dense-only",
+    "agent-on-top vs RAG-as-tool vs router-only",
+    "long-context-LLM vs RAG",
+    "sentence-window vs auto-merging"
+  ],
+  "anti_patterns": [
+    "embedding-model swap without re-embed",
+    "naive top_k without rerank",
+    "no eval loop / no labeled QA",
+    "ServiceContext leftover after v0.10",
+    "metadata>chunk_size starvation",
+    "treating LlamaIndex as general agent framework"
+  ]
+}

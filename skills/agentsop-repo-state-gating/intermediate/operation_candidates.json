@@ -1,0 +1,111 @@
+{
+  "skill": "repo-state-gating",
+  "version": "0.1.0",
+  "extracted_at": "2026-05-19",
+  "source_skills": [
+    "aider-sop-skill",
+    "dify-sop-skill",
+    "dspy-sop-skill"
+  ],
+  "operations": [
+    {
+      "id": "op-1",
+      "name": "gate-classify",
+      "trigger": "new session in a repo; first cd into a new project; post-merge inflection",
+      "decision_rule": "Run 3 pre-gate commands (git log/git ls-files/ls) + 5 gate questions (size, public-API, familiarity, change-scope, conventions). Map answers via R2 decision tree to one of {greenfield, brownfield-large, mid-size-familiar, library-SDK}.",
+      "outputs": ["state_label", "evidence_line written to chat/notes"],
+      "evidence_cite": "R2-gate-questions.md; aider-sop R4 §1; BMAD greenfield/brownfield",
+      "exec_budget": "≤5 min; 30 s if obvious"
+    },
+    {
+      "id": "op-2",
+      "name": "greenfield-strategy",
+      "trigger": "state=greenfield",
+      "decision_rule": "Tool: Claude Code / Cursor / pure-LLM-chat. NOT Aider (repo-map empty). Primitive: prefer scaffolder (create-next-app, cargo new, uv init, cookiecutter) before LM file generation. Autonomy: medium-high; let LM emit multi-file skeletons. Commit every ~10 files generated.",
+      "anti_pattern": "Spending the first 30 minutes configuring Aider + CONVENTIONS.md + repo-map for an empty repo.",
+      "evidence_cite": "aider-sop R4 §1; scrimba.com/articles/best-ai-coding-assistants-2026 (Cursor for greenfield)"
+    },
+    {
+      "id": "op-3",
+      "name": "brownfield-large-strategy",
+      "trigger": "state=brownfield-large",
+      "decision_rule": "Tool: Aider (repo-map is the unlock) or Claude Code (long-context fallback). Primitive: symbol index / tree-sitter / ctags. Pattern: /ask first to locate, /add 2-5 files <25k tokens, /code after. Autonomy: low; approve each edit. Requires CONVENTIONS.md; write one if absent.",
+      "budget": "2-5 files /add, <25k tokens of code context (aider edit-errors threshold)",
+      "evidence_cite": "aider.chat/2024/05/22/swe-bench-lite.html (70.3% file-hit with repo-map); aider edit-errors troubleshooting"
+    },
+    {
+      "id": "op-4",
+      "name": "mid-size-familiar-strategy",
+      "trigger": "state=mid-size-familiar",
+      "decision_rule": "Tool: Aider --architect or Claude Code. Pre-load exact files (no repo-map fishing). /read CONVENTIONS.md. /ask design then /code. Single-commit, 1-3 file scope.",
+      "anti_pattern": "Loading repo-map when you already know the 3 files to touch — wastes context budget.",
+      "evidence_cite": "aider-sop SKILL.md Phase 4 architect; aider conventions doc"
+    },
+    {
+      "id": "op-5",
+      "name": "library-sdk-strategy",
+      "trigger": "state=library-SDK (Q2=B)",
+      "decision_rule": "Tool: Aider --auto-test or Claude Code with test runner in loop. Primitive: test-fix loop + docstring generation. Any public-API change requires CHANGELOG entry, docstring, semver check; breaking change requires deprecation path. Autonomy: low for public surface, medium for internals.",
+      "anti_pattern": "Treating as ordinary brownfield: 'random refactor' that breaks downstream consumers.",
+      "evidence_cite": "aider lint-test docs; aider conventions for API-style pinning"
+    },
+    {
+      "id": "op-6",
+      "name": "state-reclassify",
+      "trigger": "1 week since last gate AND repo doubled; new contributor joined; v0.1.0 published; agent picked wrong tool twice in a row",
+      "decision_rule": "Re-run op-1; if state label changes, rewrite the [repo-state: ...] line and switch strategy starting next task.",
+      "evidence_cite": "R1-state-taxonomy.md §state transitions"
+    },
+    {
+      "id": "op-7",
+      "name": "cross-repo-multi-state",
+      "trigger": "monorepo; multi-package repo; subtree differs from root",
+      "decision_rule": "Don't gate the whole tree. cd into each working subdirectory and run op-1 there. Each subdirectory carries its own [repo-state: ...] line. Agent switches strategy on cd. For Aider: --subtree-only; for Claude Code: cwd discipline.",
+      "evidence_cite": "aider --subtree-only docs; aider .aiderignore pattern"
+    },
+    {
+      "id": "op-8",
+      "name": "state-mismatch-rescue",
+      "trigger": "you're 10 min into a session and tool keeps misfiring (hallucinated paths, repo-map empty, conventions ignored)",
+      "decision_rule": "Stop. /clear (or open new session). Re-run op-1. Restart with the correct state's strategy. Sunk-cost is sub-30 minutes; persisting with wrong state costs hours.",
+      "anti_pattern": "Pushing through with wrong state assumption because 'I'm already set up'.",
+      "evidence_cite": "aider session-hygiene patterns; CrewAI memory-off-during-debug"
+    }
+  ],
+  "state_to_strategy_matrix": {
+    "greenfield": {
+      "tool": ["Claude Code", "Cursor", "scaffolder CLI"],
+      "avoid": ["Aider (repo-map empty)"],
+      "primitive": "scaffolder",
+      "autonomy": "medium-high",
+      "context_budget": "unbounded; commit per ~10 files"
+    },
+    "brownfield-large": {
+      "tool": ["Aider", "Claude Code"],
+      "avoid": ["Cursor full-index when index goes stale"],
+      "primitive": "repo-map / symbol index",
+      "autonomy": "low (approve each edit)",
+      "context_budget": "2-5 files /add, <25k tokens"
+    },
+    "mid-size-familiar": {
+      "tool": ["Aider --architect", "Claude Code"],
+      "avoid": ["heavy repo-map (you already know the files)"],
+      "primitive": "explicit /add + /read CONVENTIONS.md",
+      "autonomy": "medium (/ask then /code)",
+      "context_budget": "1-3 files, single commit"
+    },
+    "library-SDK": {
+      "tool": ["Aider --auto-test", "Claude Code with pytest loop"],
+      "avoid": ["unsupervised refactor of public symbols"],
+      "primitive": "test-fix loop + docstring + semver",
+      "autonomy": "low (public surface) / medium (internals)",
+      "context_budget": "scoped per public symbol; CHANGELOG entry mandatory"
+    }
+  },
+  "cross_framework_matrix": {
+    "greenfield": {"claude_code": "strong", "cline": "medium", "cursor": "strong", "aider": "weak"},
+    "brownfield-large": {"claude_code": "strong", "cline": "strong", "cursor": "medium", "aider": "strongest"},
+    "mid-size-familiar": {"claude_code": "strong", "cline": "medium", "cursor": "strong", "aider": "strong"},
+    "library-SDK": {"claude_code": "strong", "cline": "medium", "cursor": "medium", "aider": "strong"}
+  }
+}

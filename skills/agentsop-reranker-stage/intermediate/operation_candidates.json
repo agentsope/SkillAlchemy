@@ -1,0 +1,146 @@
+{
+  "skill": "reranker-stage",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "cross_links": ["llamaindex", "hybrid-retrieval"],
+  "one_sentence": "Retrieve wide for recall with a cheap bi-encoder, then rerank narrow for precision with an expensive cross-encoder that reads query and document together; keep top-N=20-50, rerank to top-k=3-5, and never use a reranker to fix a recall problem.",
+  "phase": "D-enhance",
+  "gap_id": "C4",
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "ConfirmPrecisionNotRecall",
+      "trigger": "Considering a reranker; have not proven the symptom is precision rather than recall.",
+      "action": [
+        "Run the existing pipeline against 30-50 labeled QA pairs.",
+        "Record hit-rate@N (is the gold doc in top-N) and MRR (how high).",
+        "High hit-rate + low MRR => precision problem => reranker is the right lever.",
+        "Low hit-rate => recall problem => STOP, fix retrieval/hybrid/chunking first."
+      ],
+      "output": "Go/no-go decision backed by a measured number, not a hunch.",
+      "evidence": ["llamaindex: OP-03 (#1/#10 = right doc in top-k, wrong top-1)", "hybrid-retrieval: recall path"]
+    },
+    {
+      "id": "OP-02",
+      "name": "WidenThenNarrow",
+      "trigger": "Reranker confirmed; pipeline still on naive top_k=4.",
+      "action": [
+        "Retrieve top-N = 20-50 (recall stage).",
+        "Insert reranker, re-score every candidate against the query.",
+        "Keep top-k = 3-5 (precision tail to the synthesizer).",
+        "Embed N and k as named, evaluated constants."
+      ],
+      "output": "A two-stage retrieve->rerank pipeline with a high-precision tail.",
+      "evidence": ["llamaindex: Stage 3 step 7 (widen top_k to 20-50, rerank to 3-5)", "llamaindex: OP-03"]
+    },
+    {
+      "id": "OP-03",
+      "name": "ChooseRerankerModel",
+      "trigger": "Reranker stage exists; model not yet chosen.",
+      "action": [
+        "Cohere Rerank / Voyage rerank (API): fastest to ship, no GPU, multilingual; per-search cost, data leaves boundary.",
+        "bge-reranker (bge-reranker-v2-m3 / large) local: open-weights, self-hosted, no per-call fee, multilingual; needs GPU, you own ops.",
+        "SentenceTransformer cross-encoder (ms-marco-MiniLM): light, CPU-viable for small N, lowest-dependency local option.",
+        "ColBERT / late-interaction: token-level, precomputable, scales to larger N than a full cross-encoder.",
+        "Justify by latency budget, cost ceiling, data-residency, language mix."
+      ],
+      "output": "A model justified by constraints, not defaults.",
+      "evidence": ["llamaindex: OP-03 (CohereRerank / SentenceTransformerRerank / ColBERT named)", "external: cohere rerank, bge-reranker, cross-encoder rerank RAG"]
+    },
+    {
+      "id": "OP-04",
+      "name": "BudgetLatencyAndCost",
+      "trigger": "Before shipping; reranker adds a per-query inference/billing unit.",
+      "action": [
+        "Measure p95 added by the rerank call at the chosen N.",
+        "API: network round-trip + per-search cost. Local: GPU/CPU inference time.",
+        "Note latency scales with N, not k; over-large N is the latency killer.",
+        "Attach p95 and $/query deltas to the change; ship only if precision lift clears the bar."
+      ],
+      "output": "Latency/cost deltas attached to the change for a ship decision.",
+      "evidence": ["llamaindex: Stage 3 (high-impact but expensive; exhaust cheap knobs first)", "SKILL: Dilemma 1"]
+    },
+    {
+      "id": "OP-05",
+      "name": "TuneNvsK",
+      "trigger": "Reranker live; N/k at defaults; want the precision/latency frontier.",
+      "action": [
+        "Sweep N in {20, 30, 50} holding k fixed (candidate-pool recall ceiling).",
+        "Sweep k in {3, 5, 8} holding N fixed (LLM context size).",
+        "Pick smallest N that saturates hit-rate and smallest k that saturates faithfulness.",
+        "Pin the tuned (N, k)."
+      ],
+      "output": "Tuned (N, k) on the cost/quality frontier, not guessed.",
+      "evidence": ["llamaindex: OP-02 TuneChunkSize (same sweep-and-pin discipline)", "llamaindex: Stage 3 step 7"]
+    },
+    {
+      "id": "OP-06",
+      "name": "RerankAfterHybrid",
+      "trigger": "Traffic has lexical-identity queries (codes, SKUs, symbols) AND a precision plateau.",
+      "action": [
+        "Use hybrid retrieval (BM25 + dense) for the wide stage.",
+        "Rerank the fused candidate list with a cross-encoder.",
+        "Hybrid maximizes recall into the pool; rerank maximizes precision out of it."
+      ],
+      "output": "Best-of-both: lexical recall plus cross-encoder precision.",
+      "evidence": ["hybrid-retrieval: recall stage", "llamaindex: OP-04 AddHybridBM25 + OP-03 AddReranker (sequential in Stage 3)"]
+    },
+    {
+      "id": "OP-07",
+      "name": "GateOnEval",
+      "trigger": "Any reranker add or change.",
+      "action": [
+        "Compare before/after on {MRR, faithfulness, relevancy, p95, $/query}.",
+        "Keep the reranker only on net-positive.",
+        "Treat it as a regression test for future retriever changes."
+      ],
+      "output": "Quantitative justification; the reranker is eval-gated.",
+      "evidence": ["llamaindex: OP-10 EvalLoop", "llamaindex: Stage 2 (eval loop before optimizing) and Stage 4"]
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D1",
+      "name": "Rerank latency vs answer quality",
+      "tension": "Reranker reliably lifts precision but adds per-query latency (API round-trip or GPU inference); may violate an SLA even when quality improves.",
+      "resolution": "SLA-driven: measure headroom, start N=20, shrink N or switch to a lighter model (MiniLM/ColBERT) if over budget; if still over and quality is acceptable, do not rerank.",
+      "ops": ["OP-04", "OP-05"],
+      "anti_patterns": ["A3"]
+    },
+    {
+      "id": "D2",
+      "name": "API reranker vs local model",
+      "tension": "Hosted API (Cohere/Voyage) ships fast, no GPU, SOTA, but bills per search and sends data out. Local bge/cross-encoder: no per-call fee, in-boundary, but needs GPU + ops.",
+      "resolution": "Default to API to validate the lift cheaply, then migrate to local once volume/cost/residency justify it; wrap behind a rerank(query, nodes) seam so the swap is one line.",
+      "ops": ["OP-03", "OP-04"],
+      "anti_patterns": ["A5"]
+    }
+  ],
+  "anti_patterns": [
+    {"id": "A1", "name": "Rerank to fix recall (gold doc not in top-N)", "fix": "Fix retrieval/hybrid/chunking; a reranker only reorders what is retrieved"},
+    {"id": "A2", "name": "Naive top_k=N fed whole to LLM, no rerank", "fix": "Widen N and rerank to top-3-5 (llamaindex A6)"},
+    {"id": "A3", "name": "Over-large N (rerank 200+ candidates)", "fix": "Latency scales with N; pick smallest N that saturates hit-rate"},
+    {"id": "A4", "name": "Add reranker before prompt/embed/chunk/hybrid", "fix": "Order law: reranking is last; cheapest knobs first"},
+    {"id": "A5", "name": "Hard-wire one vendor SDK throughout", "fix": "Hide behind a rerank(query, nodes) seam for one-line API<->local swap"},
+    {"id": "A6", "name": "Ship reranker without before/after eval", "fix": "Gate on {MRR, faithfulness, p95, $/query}"},
+    {"id": "A7", "name": "Keep N=k (return all reranked candidates)", "fix": "Reranking only helps when k < N; discard the low-scored tail"},
+    {"id": "A8", "name": "Re-embed/re-chunk to fix a wrong top-1 that is present but buried", "fix": "Present-but-buried is a rerank job, not a re-ingest"}
+  ],
+  "boundaries": [
+    {"id": "B1", "rule": "Recall is the bottleneck (hit-rate@N low)", "action": "Fix retrieval first; reranking is a no-op"},
+    {"id": "B2", "rule": "Already narrow (top-k<=5) and correct", "action": "No plateau, no lever"},
+    {"id": "B3", "rule": "Hard real-time / sub-100ms and quality acceptable", "action": "Skip the rerank round-trip"},
+    {"id": "B4", "rule": "Tiny static corpus (prompt-stuffable)", "action": "No retrieval stage to rerank (llamaindex B1)"}
+  ],
+  "cross_framework": {
+    "llamaindex": "Node postprocessors: CohereRerank, SentenceTransformerRerank, ColbertRerank, LLMRerank; widen similarity_top_k, set reranker top_n",
+    "langchain": "ContextualCompressionRetriever wrapping a base retriever with CohereRerank / CrossEncoderReranker compressor",
+    "cohere_api": "cohere.rerank(query, documents, top_n, model='rerank-v3.5')",
+    "voyage_api": "voyageai.rerank(query, documents, model='rerank-2', top_k)",
+    "bge_local": "FlagReranker('BAAI/bge-reranker-v2-m3') or sentence-transformers CrossEncoder",
+    "sentence_transformers": "CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2').predict([(q,d),...])",
+    "colbert": "Late-interaction reranker (RAGatouille); token-level, precomputable, scales to larger N",
+    "haystack": "TransformersSimilarityRanker / CohereRanker pipeline component"
+  }
+}

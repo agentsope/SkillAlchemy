@@ -1,0 +1,142 @@
+{
+  "skill": "cost-tiered-models",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "phase": "D-enhance (M7)",
+  "unifies": [
+    {"framework": "Aider", "local_name": "architect + editor"},
+    {"framework": "DSPy", "local_name": "optimizer-LM vs task-LM (mirror)"},
+    {"framework": "LangGraph", "local_name": "supervisor + worker"},
+    {"framework": "vLLM", "local_name": "speculative draft + target"}
+  ],
+  "core_principle": "Split by cognitive demand: a strong model decides (few calls), a cheap model executes (most calls); calls whose output enters the final product and need judgment go Tier-S, scaffolding/draft/verifiable-proposal calls go Tier-E with an escalation valve.",
+  "operation_candidates": [
+    {
+      "id": "OP-1",
+      "name": "Role-tier mapping",
+      "trigger": "A multi-call LM workflow; need to know which calls are safe to downgrade.",
+      "action": [
+        "For each LM call ask: is it thinking (plan/route/judge/propose) or doing (rewrite/extract/format/apply)?",
+        "Thinking -> Tier-S (strongest reasoner); doing -> Tier-E (cheap model).",
+        "Note that execution-tier calls dominate call count and therefore cost."
+      ],
+      "output": "A (call -> tier -> model) mapping table plus expected cost structure.",
+      "evidence": [
+        "output/dspy-sop-skill/SKILL.md (decide which model optimizes vs is task model)",
+        "SKILL.md section 7 four-framework shared shape"
+      ]
+    },
+    {
+      "id": "OP-2",
+      "name": "The architect+editor recipe",
+      "trigger": "Strong reasoner with weak execution (dirty diff/format), or any reason-then-land step to decouple.",
+      "action": [
+        "Strong model = architect: emit a natural-language plan only, no final format.",
+        "Cheap model = editor: turn the plan into a format-correct artifact with a lean prompt and its preferred format.",
+        "Aider auto-switches editor to editor-diff / editor-whole."
+      ],
+      "output": "Two-step pipeline: propose (strong, free text) -> apply (cheap, strict format).",
+      "evidence": [
+        "https://aider.chat/2024/09/26/architect.html",
+        "Polyglot Pass@2: o1-preview 79.7% -> o1-preview+Sonnet 82.7% -> o1-preview+o1-mini 85%; Sonnet self-paired 77.4% -> 80.5%"
+      ]
+    },
+    {
+      "id": "OP-3",
+      "name": "Fallback-escalation valve",
+      "trigger": "Cheap executor fails/degrades on a subset of inputs.",
+      "action": [
+        "Define detectable failure signals: invalid format, failing test, schema validation failure, low self-eval.",
+        "On failure -> escalate that step to Tier-S and retry (or retry once with a more robust format first).",
+        "Track escalation rate as a health metric."
+      ],
+      "output": "Execution tier with an escalation valve; escalation-rate metric.",
+      "evidence": [
+        "https://docs.vllm.ai/en/latest/features/speculative_decoding/ (draft proposes, target verifies, reject->correct)",
+        "https://aider.chat/docs/troubleshooting/edit-errors.html (escalate model / change format on edit failure)"
+      ]
+    },
+    {
+      "id": "OP-4",
+      "name": "Format-by-tier",
+      "trigger": "Choosing the output format for a Tier-E call.",
+      "action": [
+        "Give the cheap model the parse-safest format (whole file / simple schema), not byte-sensitive diffs.",
+        "Never wrap code or complex artifacts in a JSON tool-call."
+      ],
+      "output": "Per-Tier-E-call format choice.",
+      "evidence": [
+        "https://aider.chat/2024/08/14/code-in-json.html (all models, incl. Sonnet, do worse wrapped in JSON)"
+      ]
+    },
+    {
+      "id": "OP-5",
+      "name": "Cheap-optimizer / expensive-task (the mirror)",
+      "trigger": "You auto-tune prompts / search / orchestrate (a meta layer) while the served task call is expensive.",
+      "action": [
+        "Run the meta layer (optimize/propose/search) on a cheap model.",
+        "Reserve the expensive model for the task call that enters the final product.",
+        "Criterion stays: quality-into-product -> strong; scaffolding -> cheap (this is the mirror of OP-1/2)."
+      ],
+      "output": "optimizer-LM (cheap) vs task-LM (expensive) assignment.",
+      "evidence": [
+        "https://github.com/stanfordnlp/dspy/issues/1596 (gpt-4o-mini optimizer + gpt-4o task: parity, lower cost)"
+      ]
+    },
+    {
+      "id": "OP-6",
+      "name": "Distill-after-split",
+      "trigger": "Split is stable; want to compress the execution tier into a cheaper local small model.",
+      "action": [
+        "Use the strong model / optimized pipeline as teacher; distill a student small model for Tier-E.",
+        "Recompile/retest when the task-LM family changes; large-model verbose CoT demos make small models parrot length without reasoning."
+      ],
+      "output": "Fine-tuned small executor + strong decision model combo.",
+      "evidence": [
+        "https://dspy.ai/api/optimizers/BootstrapFinetune/ (student=Llama-3.2-1B, teacher=gpt-4o-mini)",
+        "output/dspy-sop-skill/SKILL.md Case B (GPT-4 pipeline breaks on Llama-3-8B)"
+      ]
+    },
+    {
+      "id": "OP-7",
+      "name": "Supervisor/worker tiering",
+      "trigger": "Multi-agent orchestration: a routing/coordinating agent plus several executing sub-agents.",
+      "action": [
+        "Supervisor (route/synthesize/decide next) -> strong model.",
+        "Workers (execute a concrete subtask) -> cheap model.",
+        "Budget for the supervisor's translation token overhead in the total cost."
+      ],
+      "output": "supervisor=Tier-S, workers=Tier-E orchestration.",
+      "evidence": [
+        "https://langchain-ai.github.io/langgraph/concepts/multi_agent/",
+        "output/langgraph-sop-skill/SKILL.md Case 2 (supervisor uses more tokens than swarm due to translation)"
+      ]
+    }
+  ],
+  "dilemma_cases": [
+    {
+      "id": "D1",
+      "title": "Is Aider architect mode worth the cost?",
+      "rule": "Gain = (quality delta) x (task value) - (extra call cost). Reasoner already clean at editing -> delta ~= 0, don't split. Reasoner editing dirty (o1/o3) -> delta large (79.7%->82.7%->85%), split.",
+      "evidence": "https://aider.chat/2024/09/26/architect.html"
+    },
+    {
+      "id": "D2",
+      "title": "When does a cheap executor degrade enough to escalate?",
+      "rule": "Add detectable failure signals; escalate failing steps only (not the whole tier). Track escalation rate: <10% healthy; 10-30% watch; >30% the step belongs in Tier-S, reclassify. Never probabilistically escalate everything (= back to single tier).",
+      "evidence": [
+        "https://docs.vllm.ai/en/latest/features/speculative_decoding/ (high QPS -> speculation steals capacity -> disable)",
+        "https://aider.chat/docs/troubleshooting/edit-errors.html"
+      ]
+    }
+  ],
+  "anti_patterns": [
+    "One-model-for-everything (the default reflex to challenge).",
+    "Over-splitting tiny workflows (coordination/translation overhead > savings).",
+    "Splitting without measuring quality+cost delta on your own task.",
+    "Loading the cheap executor with the strong model's format burden (byte-sensitive diff, code-in-JSON).",
+    "Splitting with no escalation valve (long-tail failures reach the product).",
+    "Treating the split point as a binary switch instead of a tunable slider.",
+    "Not recalibrating after swapping the execution-tier model family."
+  ]
+}

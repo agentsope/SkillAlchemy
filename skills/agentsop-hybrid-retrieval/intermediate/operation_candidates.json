@@ -1,0 +1,134 @@
+{
+  "skill": "hybrid-retrieval",
+  "version": "0.1.0",
+  "dated": "2026-05",
+  "overlay": true,
+  "cross_links": ["llamaindex", "langchain", "query-routing"],
+  "one_sentence": "Dense captures meaning, sparse captures exact tokens; hybrid wins when both matter — but only fuse when traffic actually carries exact-match queries, and tune the blend per query type or hybrid loses to dense.",
+  "operation_candidates": [
+    {
+      "id": "OP-01",
+      "name": "WhenHybridChecklist",
+      "trigger": "Deciding whether to add sparse to a dense pipeline.",
+      "action": [
+        "Sample >=50 real queries; label semantic / lexical / mixed.",
+        "Compute lexical share.",
+        "Confirm corpus has exact-match tokens AND queries reference them AND those tokens appear verbatim in chunks.",
+        "<5% -> dense-only; 5-50% -> hybrid; >50% -> invert to sparse-first."
+      ],
+      "output": "Go/no-go with lexical share recorded; 'no' is a valid common outcome.",
+      "evidence": ["llamaindex: Dilemma 2 decision steps; OP-04 (trigger is traffic-driven, not theoretical)"]
+    },
+    {
+      "id": "OP-02",
+      "name": "ChooseFusionMethod",
+      "trigger": "Two legs wired; need to combine their result lists.",
+      "action": [
+        "Default RRF (reciprocal_rerank): rank-based, robust to dense-cosine vs BM25 score-scale gap.",
+        "Use weighted/relative-score only with a labeled set to fit weights and normalized scores.",
+        "Never naive-sum un-normalized scores."
+      ],
+      "output": "One deliberate fusion method plus the reason chosen.",
+      "evidence": ["RRF (Cormack et al. 2009)", "LlamaIndex QueryFusionRetriever modes", "LangChain EnsembleRetriever (RRF default)"]
+    },
+    {
+      "id": "OP-03",
+      "name": "WireBM25Leg",
+      "trigger": "Hybrid approved; sparse leg not yet built.",
+      "action": [
+        "BM25Retriever.from_defaults(nodes=...) over the SAME node set as the dense index.",
+        "Persist/rebuild the BM25 index as a deployment artifact alongside the vector index.",
+        "Set per-leg similarity_top_k wide (10-20)."
+      ],
+      "output": "Sparse retriever consistent with the dense index, returning enough candidates to fuse.",
+      "evidence": ["LlamaIndex BM25Retriever docs", "llamaindex: OP-04 AddHybridBM25"]
+    },
+    {
+      "id": "OP-04",
+      "name": "PreferNativeHybrid",
+      "trigger": "The vector store supports sparse internally.",
+      "action": [
+        "Use store-native hybrid: Qdrant sparse vectors + FusionQuery, Weaviate hybrid(alpha=), Pinecone sparse-dense, pgvector full-text + vector, Milvus RRFRanker/WeightedRanker.",
+        "One round-trip, one consistency domain, no separate BM25 index to keep in sync."
+      ],
+      "output": "Hybrid with no second index to keep in sync; lower operational surface.",
+      "evidence": ["Qdrant hybrid queries docs", "Weaviate hybrid docs", "Pinecone sparse-dense docs", "llamaindex: OP-04 (or vendor hybrid Qdrant/Milvus alpha)"]
+    },
+    {
+      "id": "OP-05",
+      "name": "AlphaTunePerType",
+      "trigger": "Fusion wired; recall not yet optimized; or hybrid 'loses to dense'.",
+      "action": [
+        "Evaluate alpha/weights at {0,0.25,0.5,0.75,1.0} on labeled subsets PER query type, not globally.",
+        "Lexical -> low alpha (sparse-leaning); semantic -> high alpha (dense-leaning)."
+      ],
+      "output": "Per-type alpha curve; the alpha that lifts lexical without regressing semantic.",
+      "evidence": ["LlamaIndex alpha-tuning blog", "llamaindex: Dilemma 2 (tune per type, not globally)"]
+    },
+    {
+      "id": "OP-06",
+      "name": "RouteThenAlpha",
+      "trigger": "No single global alpha satisfies both query types without regression.",
+      "action": [
+        "Classify query type first.",
+        "Dispatch to a retriever configured with the per-type alpha (or pure dense / pure sparse).",
+        "Hand classification to a router (query-routing) if available."
+      ],
+      "output": "Each query gets its optimal blend; semantic and lexical slices both peak.",
+      "evidence": ["llamaindex: Dilemma 2 result (per-type tuning)", "query-routing as the application mechanism"]
+    },
+    {
+      "id": "OP-07",
+      "name": "InvertForLexicalCorpus",
+      "trigger": "Lexical share >50% (code search, log search, legal/medical citation lookup).",
+      "action": [
+        "Make BM25 the primary retriever.",
+        "Use dense as a fallback / rerank signal to catch paraphrase, not as the lead leg.",
+        "Equivalent to alpha pinned low."
+      ],
+      "output": "Recall dominated by exact-token matching where users want it; dense recovers the semantic minority.",
+      "evidence": ["llamaindex: Dilemma 2 step 4 (BM25-first, dense as fallback rerank)", "TianPan production write-up"]
+    },
+    {
+      "id": "OP-08",
+      "name": "HybridEvalGate",
+      "trigger": "Before merging any hybrid change.",
+      "action": [
+        "Run the eval loop on BOTH slices.",
+        "Assert lexical-slice recall/MRR rises vs dense baseline.",
+        "Assert semantic-slice metrics do not regress.",
+        "Gate merge on both."
+      ],
+      "output": "Quantitative proof hybrid helped where intended and harmed nothing else.",
+      "evidence": ["llamaindex: Stage 2 eval loop (gate every change)", "llamaindex: OP-10 EvalLoop"]
+    }
+  ],
+  "dilemmas": [
+    {
+      "id": "D1",
+      "title": "Hybrid (BM25 + dense) vs pure dense: worth the complexity?",
+      "resolution": "Traffic-driven: <5% lexical -> dense-only; 5-50% -> hybrid with per-type alpha; >50% -> invert to BM25-first. Hybrid lifts the lexical slice with no semantic degradation IF alpha is tuned per type.",
+      "ops": ["OP-01", "OP-05", "OP-07", "OP-08"],
+      "source": "llamaindex Dilemma 2 (verbatim)"
+    },
+    {
+      "id": "D2",
+      "title": "Alpha for keyword-heavy vs semantic queries: one knob, two demands",
+      "resolution": "A single global alpha lands in a valley that underperforms pure dense on the semantic majority. Tune alpha per query type; if no global alpha works, route by type and apply per-route alpha. For >50% lexical corpora, invert.",
+      "ops": ["OP-05", "OP-06", "OP-08"],
+      "source": "LlamaIndex alpha-tuning blog; llamaindex Dilemma 2"
+    }
+  ],
+  "anti_patterns": [
+    "A1 hybrid by default on a purely semantic corpus",
+    "A2 single global alpha for mixed traffic",
+    "A3 ignoring fusion method / naive-summing incomparable scores",
+    "A4 BM25 leg over a different/stale node set",
+    "A5 'semantic dropped so hybrid is bad' (alpha was global)",
+    "A6 final cut taken before fusion (no candidate headroom)",
+    "A7 separate BM25 index when native hybrid exists",
+    "A8 hybrid as substitute for reranker",
+    "A9 shipping hybrid with no per-slice eval"
+  ],
+  "extraction_note": "Standalone overlay extracted from llamaindex SKILL.md Stage 3 step 4 (hybrid search) + OP-04 AddHybridBM25 + references/R3-dilemma-cases.md Dilemma 2 (Hybrid BM25+dense vs pure dense, alpha-tuning per query type). Frontmatter style aligned to ~/.claude/skills/llamaindex."
+}
