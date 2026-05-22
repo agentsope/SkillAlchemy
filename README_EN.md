@@ -35,14 +35,6 @@ Send this to Claude Code (or Codex):
 Please pull the skill from https://github.com/agentsope/SkillAlchemy and install it into my Claude Code skills, then tell me how to use it.
 ```
 
-The Agent will handle the installation. Once installed:
-
-```
-Distill Zhang Xuefeng, depth=standard
-Fuse first-principles-thinking and feynman-technique
-Help me analyze what I should consider for "building an AI customer service product"
-```
-
 Or via command line:
 
 ```bash
@@ -63,10 +55,18 @@ npx skills add agentsope/SkillAlchemy
 
 ## Example
 
+<div align="center">
+  <img src="SkillAlchemy.gif" alt="SkillAlchemy Demo" width="700">
+  <br>
+  <em>Distilling "Stephen Chow" → persona skill, full pipeline</em>
+</div>
+
+<br>
+
 ```
 ◆ Task Briefing
 
-▸ Target   Distill "Zhang Xuefeng" → persona skill
+▸ Target   Distill "Stephen Chow" → persona skill
 ▸ Pipeline Lens → A-branch (7 Stage + 2 Gate)
            ├─ Research Swarm  5 agents parallel
            ├─ Exemplar        find-skills online search + auto-score
@@ -81,12 +81,12 @@ npx skills add agentsope/SkillAlchemy
 
 ◆ Distillation Complete
 
-  skill     Zhang Xuefeng · zhang-xuefeng
+  skill     Stephen Chow · stephen-chow
   type      persona · 102 lines
   quality   ✓ pass · self-score 10/10 · elite
-  output    output/zhang-xuefeng-skill/
+  output    output/stephen-chow-skill/
 
-  try       /zhang-xuefeng My kid scored 590 in science, wants to study CS
+  try       /stephen-chow What do you think makes comedy funny?
 ```
 
 ---

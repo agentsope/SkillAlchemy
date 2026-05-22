@@ -36,14 +36,6 @@
 请你帮我从 https://github.com/agentsope/SkillAlchemy 拉取这个 skill 到本地，安装到 Claude Code 的 skills 里，然后告诉我怎么用。
 ```
 
-Agent 会自动完成安装。装好之后，你就可以这样用：
-
-```
-蒸馏张雪峰，depth=standard
-融合第一性原理思考和费曼学习法
-帮我分析一下「做一个 AI 客服产品」需要考虑什么
-```
-
 也可以走命令行：
 
 ```bash
@@ -64,10 +56,18 @@ npx skills add agentsope/SkillAlchemy
 
 ## 效果
 
+<div align="center">
+  <img src="SkillAlchemy.gif" alt="SkillAlchemy Demo" width="700">
+  <br>
+  <em>蒸馏「周星驰」→ persona skill 完整流程</em>
+</div>
+
+<br>
+
 ```
 ◆ 任务简报
 
-▸ 需求    蒸馏「张雪峰」→ persona skill
+▸ 需求    蒸馏「周星驰」→ persona skill
 ▸ 流程    Lens → A 分支（7 Stage + 2 Gate）
           ├─ Research Swarm  5 agent 并行研究
           ├─ Exemplar        find-skills 在线检索 + 自动评分
@@ -82,12 +82,12 @@ npx skills add agentsope/SkillAlchemy
 
 ◆ 蒸馏完成
 
-  skill     张雪峰 · zhang-xuefeng
+  skill     周星驰 · stephen-chow
   类型      persona · 102 行
   质量      ✓ pass · 自评 10/10 · elite
-  产出      output/zhang-xuefeng-skill/
+  产出      output/stephen-chow-skill/
 
-  试试      /张雪峰 我孩子理科590分河南想学计算机
+  试试      /周星驰 你觉得喜剧的本质是什么？
 ```
 
 ---
