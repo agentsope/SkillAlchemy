@@ -11,6 +11,12 @@
 </div>
 
 <p align="center">
+  <a href="https://github.com/agentsope/SkillAlchemy/stargazers"><img src="https://img.shields.io/github/stars/agentsope/SkillAlchemy?logo=github&color=ffca28" alt="Stars"></a>
+  <img src="https://img.shields.io/github/license/agentsope/SkillAlchemy?color=blue" alt="License">
+  <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> ·
   <a href="#what-it-does">What It Does</a> ·
   <a href="#example">Example</a> ·

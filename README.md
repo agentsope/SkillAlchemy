@@ -11,6 +11,12 @@
 </div>
 
 <p align="center">
+  <a href="https://github.com/agentsope/SkillAlchemy/stargazers"><img src="https://img.shields.io/github/stars/agentsope/SkillAlchemy?logo=github&color=ffca28" alt="Stars"></a>
+  <img src="https://img.shields.io/github/license/agentsope/SkillAlchemy?color=blue" alt="License">
+  <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
+</p>
+
+<p align="center">
   <a href="#快速开始">快速开始</a> ·
   <a href="#它能做什么">它能做什么</a> ·
   <a href="#效果">效果</a> ·
