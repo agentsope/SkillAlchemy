@@ -88,7 +88,7 @@ def parse_sitemap(url: str) -> list[dict]:
             loc = url_elem.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
             lastmod = url_elem.find("{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod")
             if loc is not None and loc.text:
-                path = loc.text.replace("https://skills.sh/", "").strip("/")
+                path = loc.text.split("skills.sh/", 1)[-1].strip("/")  # handle www.skills.sh
                 parts = path.split("/")
                 if len(parts) >= 3:
                     skills.append({

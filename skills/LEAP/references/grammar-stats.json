@@ -1,0 +1,504 @@
+{
+  "all_skills": {
+    "total_skills_indexed": 307,
+    "skill_mode": {
+      "tool": 307
+    },
+    "trigger_patterns": {
+      "keyword-match": 228,
+      "hybrid": 49,
+      "explicit-call": 2,
+      "context-match": 28
+    },
+    "sop_patterns": {
+      "chain-of-steps": 211,
+      "template-fill": 71,
+      "reference": 25
+    },
+    "operation_types": {
+      "diagnose": 184,
+      "transform": 61,
+      "validate": 184,
+      "compare": 116,
+      "generate": 107,
+      "extract": 59,
+      "reference": 50
+    },
+    "boundary_patterns": {
+      "capability-bound": 12,
+      "source-bound": 3,
+      "scope-bound": 4
+    },
+    "section_headings": {
+      "Related Skills": 40,
+      "Overview": 36,
+      "Task-Specific Questions": 34,
+      "Quick Reference": 29,
+      "Workflow": 24,
+      "Steps": 24,
+      "Output Format": 24,
+      "When to Use This Skill": 23,
+      "Prerequisites": 23,
+      "References": 22,
+      "Core Principles": 19,
+      "Best Practices": 18,
+      "Limitations": 18,
+      "How it works": 18,
+      "When to Use": 17,
+      "Common Mistakes": 17,
+      "权限表": 14,
+      "Initial Assessment": 14,
+      "Before Starting": 14,
+      "Exit codes": 14,
+      "API Resources": 13,
+      "Security & Privacy": 13,
+      "Examples": 12,
+      "MCP Tools": 11,
+      "Error Handling": 11,
+      "Rules": 11,
+      "Shortcuts（推荐优先使用）": 11,
+      "Tool Integrations": 11,
+      "SDK Quick References": 9,
+      "Core Workflow": 9,
+      "How to invoke": 9,
+      "Troubleshooting": 8,
+      "When to Activate": 8,
+      "When to pick this model (vs siblings)": 8,
+      "Endpoints + input schema": 8,
+      "Prompting — what actually works": 8,
+      "Where it shines": 8,
+      "Sample prompts (verified to produce strong results)": 8,
+      "Usage": 7,
+      "Additional Resources": 7,
+      "核心概念": 7,
+      "Quick Start": 7,
+      "Red Flags": 7,
+      "Constraints": 6,
+      "Triggers": 6,
+      "快速决策": 6,
+      "When to Apply": 5,
+      "Core Philosophy": 5,
+      "Before You Start": 5,
+      "Authentication": 5
+    },
+    "line_count_distribution": {
+      "<100": 93,
+      "100-300": 141,
+      "300-800": 70,
+      "800+": 3
+    },
+    "common_missing_sections": {},
+    "description_has_trigger": 151,
+    "top_section_headings": [
+      [
+        "Related Skills",
+        40
+      ],
+      [
+        "Overview",
+        36
+      ],
+      [
+        "Task-Specific Questions",
+        34
+      ],
+      [
+        "Quick Reference",
+        29
+      ],
+      [
+        "Workflow",
+        24
+      ],
+      [
+        "Steps",
+        24
+      ],
+      [
+        "Output Format",
+        24
+      ],
+      [
+        "When to Use This Skill",
+        23
+      ],
+      [
+        "Prerequisites",
+        23
+      ],
+      [
+        "References",
+        22
+      ],
+      [
+        "Core Principles",
+        19
+      ],
+      [
+        "Best Practices",
+        18
+      ],
+      [
+        "Limitations",
+        18
+      ],
+      [
+        "How it works",
+        18
+      ],
+      [
+        "When to Use",
+        17
+      ],
+      [
+        "Common Mistakes",
+        17
+      ],
+      [
+        "权限表",
+        14
+      ],
+      [
+        "Initial Assessment",
+        14
+      ],
+      [
+        "Before Starting",
+        14
+      ],
+      [
+        "Exit codes",
+        14
+      ],
+      [
+        "API Resources",
+        13
+      ],
+      [
+        "Security & Privacy",
+        13
+      ],
+      [
+        "Examples",
+        12
+      ],
+      [
+        "MCP Tools",
+        11
+      ],
+      [
+        "Error Handling",
+        11
+      ],
+      [
+        "Rules",
+        11
+      ],
+      [
+        "Shortcuts（推荐优先使用）",
+        11
+      ],
+      [
+        "Tool Integrations",
+        11
+      ],
+      [
+        "SDK Quick References",
+        9
+      ],
+      [
+        "Core Workflow",
+        9
+      ]
+    ]
+  },
+  "top_60pct_quality": {
+    "filter": "top_60pct_quality_score_>=8",
+    "skills_included": 184,
+    "skills_excluded": 123,
+    "quality_score_distribution": {
+      "12": 14,
+      "11": 16,
+      "10": 65,
+      "9": 61,
+      "8": 28
+    },
+    "skill_mode": {
+      "tool": 184
+    },
+    "trigger_patterns": {
+      "hybrid": 45,
+      "keyword-match": 131,
+      "context-match": 7,
+      "explicit-call": 1
+    },
+    "sop_patterns": {
+      "chain-of-steps": 145,
+      "template-fill": 36,
+      "reference": 3
+    },
+    "operation_types": {
+      "diagnose": 141,
+      "transform": 43,
+      "validate": 124,
+      "generate": 79,
+      "compare": 78,
+      "extract": 43,
+      "reference": 13
+    },
+    "boundary_patterns": {
+      "scope-bound": 3,
+      "capability-bound": 4,
+      "source-bound": 2
+    },
+    "section_headings": {},
+    "line_count_distribution": {
+      "<100": 28,
+      "100-300": 99,
+      "300-800": 55,
+      "800+": 2
+    },
+    "description_has_trigger": 184,
+    "top_section_headings": [
+      [
+        "Related Skills",
+        40
+      ],
+      [
+        "Task-Specific Questions",
+        34
+      ],
+      [
+        "Overview",
+        32
+      ],
+      [
+        "Quick Reference",
+        25
+      ],
+      [
+        "Output Format",
+        21
+      ],
+      [
+        "References",
+        20
+      ],
+      [
+        "Workflow",
+        19
+      ],
+      [
+        "When to Use This Skill",
+        18
+      ],
+      [
+        "Common Mistakes",
+        17
+      ],
+      [
+        "Core Principles",
+        17
+      ],
+      [
+        "Before Starting",
+        14
+      ],
+      [
+        "Initial Assessment",
+        14
+      ],
+      [
+        "When to Use",
+        12
+      ],
+      [
+        "Best Practices",
+        12
+      ],
+      [
+        "Tool Integrations",
+        11
+      ],
+      [
+        "Prerequisites",
+        9
+      ],
+      [
+        "Shortcuts（推荐优先使用）",
+        9
+      ],
+      [
+        "权限表",
+        9
+      ],
+      [
+        "MCP Tools",
+        8
+      ],
+      [
+        "Core Workflow",
+        8
+      ],
+      [
+        "SDK Quick References",
+        8
+      ],
+      [
+        "Limitations",
+        8
+      ],
+      [
+        "Red Flags",
+        7
+      ],
+      [
+        "Troubleshooting",
+        7
+      ],
+      [
+        "Error Handling",
+        7
+      ],
+      [
+        "API Resources",
+        7
+      ],
+      [
+        "Constraints",
+        6
+      ],
+      [
+        "Rules",
+        6
+      ],
+      [
+        "Additional Resources",
+        6
+      ],
+      [
+        "核心概念",
+        6
+      ]
+    ],
+    "top_correlations": [
+      [
+        "sop=chain-of-steps + op=diagnose",
+        120
+      ],
+      [
+        "trigger=keyword-match + sop=chain-of-steps",
+        107
+      ],
+      [
+        "sop=chain-of-steps + op=validate",
+        100
+      ],
+      [
+        "sop=chain-of-steps + op=generate",
+        66
+      ],
+      [
+        "sop=chain-of-steps + op=compare",
+        66
+      ],
+      [
+        "sop=chain-of-steps + op=extract",
+        36
+      ],
+      [
+        "sop=chain-of-steps + op=transform",
+        33
+      ],
+      [
+        "trigger=hybrid + sop=chain-of-steps",
+        31
+      ],
+      [
+        "sop=template-fill + op=validate",
+        22
+      ],
+      [
+        "trigger=keyword-match + sop=template-fill",
+        22
+      ],
+      [
+        "sop=template-fill + op=diagnose",
+        21
+      ],
+      [
+        "trigger=hybrid + sop=template-fill",
+        13
+      ],
+      [
+        "sop=template-fill + op=generate",
+        11
+      ],
+      [
+        "sop=template-fill + op=compare",
+        11
+      ],
+      [
+        "sop=template-fill + op=transform",
+        9
+      ],
+      [
+        "sop=chain-of-steps + op=reference",
+        8
+      ],
+      [
+        "sop=template-fill + op=extract",
+        7
+      ],
+      [
+        "trigger=context-match + sop=chain-of-steps",
+        6
+      ],
+      [
+        "sop=template-fill + op=reference",
+        5
+      ],
+      [
+        "sop=reference + op=validate",
+        2
+      ],
+      [
+        "trigger=keyword-match + sop=reference",
+        2
+      ],
+      [
+        "sop=reference + op=generate",
+        2
+      ],
+      [
+        "trigger=hybrid + sop=reference",
+        1
+      ],
+      [
+        "sop=reference + op=transform",
+        1
+      ],
+      [
+        "sop=reference + op=compare",
+        1
+      ]
+    ],
+    "quality_vs_all_skill_differences": {
+      "trigger_shift": {
+        "hybrid": "16%→24%",
+        "keyword-match": "74%→71%",
+        "context-match": "9%→4%"
+      },
+      "sop_shift": {
+        "chain-of-steps": "69%→79%",
+        "reference": "8%→2%",
+        "template-fill": "23%→20%"
+      },
+      "line_count_shift": {
+        "<100": "30%→15%",
+        "100-300": "46%→54%",
+        "300-800": "23%→30%"
+      }
+    }
+  }
+}
