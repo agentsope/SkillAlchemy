@@ -20,6 +20,7 @@
   <a href="#快速开始">快速开始</a> ·
   <a href="#它能做什么">它能做什么</a> ·
   <a href="#效果">效果</a> ·
+  <a href="#skillsbench-基准测试">SkillsBench</a> ·
   <a href="#参数">参数</a> ·
   <a href="#已蒸馏的-skill">已蒸馏 Skill</a> ·
   <a href="#边界">边界</a> ·
@@ -98,6 +99,19 @@ npx skills add agentsope/SkillAlchemy
 
 ---
 
+## SkillsBench 基准测试
+
+我们在 [SkillsBench](https://github.com/benchflow-ai/skillsbench)（84 个任务，11 个领域）上验证了 SkillAlchemy 的实际效果。
+
+| Agent | Model | No Skill | Curated Skill | **SkillAlchemy** |
+|-------|-------|----------|---------------|----------------|
+| Claude Code | DeepSeek-V4-Pro | 20.2% | 50.0% | **57.1%** |
+| Claude Code | Opus 4.6 | — | — | — |
+| Codex | DeepSeek-V4-Pro | — | — | — |
+| Codex | GPT-5.2 | — | — | — |
+
+---
+
 ## 参数
 
 只有一个参数：`depth`。默认 `standard`。
@@ -117,29 +131,13 @@ npx skills add agentsope/SkillAlchemy
 
 ## 已蒸馏的 Skill
 
-仓库 `skills/` 目录下蕴含了大量蒸馏好的 Skill，覆盖主流 AI Agent 框架、工具和工作流。你不需要从头蒸馏——直接安装就能用。
-
-**安装方式一：命令行**
+[`skills/`](skills/) 目录下包含大量开箱即用的 Skill，覆盖 AI Agent 框架、工具链、安全、数据等领域。
 
 ```bash
 npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ```
 
-**安装方式二：自然语言**
-
-把下面这句话发给 Claude Code（或者 Codex）：
-
-```
-请帮我从 https://github.com/agentsope/SkillAlchemy 安装 <skill名称> 到本地
-```
-
-比如装 Lens：
-
-```
-请帮我从 https://github.com/agentsope/SkillAlchemy 安装 Lens 到本地
-```
-
-所有可用 Skill 见 [`skills/`](skills/) 目录。
+也可以直接跟 Claude Code 说：`请帮我从 agentsope/SkillAlchemy 安装 Lens 到本地`。
 
 ---
 
