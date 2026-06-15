@@ -106,9 +106,9 @@ npx skills add agentsope/SkillAlchemy
 | Agent | Model | No Skill | Curated Skill | **SkillAlchemy** |
 |-------|-------|----------|---------------|----------------|
 | Claude Code | DeepSeek-V4-Pro | 20.2% | 50.0% | **57.1%** |
-| Claude Code | Opus 4.6 | — | — | — |
+| Claude Code | Opus 4.8 | — | — | — |
 | Codex | DeepSeek-V4-Pro | — | — | — |
-| Codex | GPT-5.2 | — | — | — |
+| Codex | GPT-5.5 | — | — | — |
 
 ---
 
