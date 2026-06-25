@@ -63,6 +63,21 @@ npx skills add agentsope/SkillAlchemy
 
 ## 效果
 
+---
+
+## SkillsBench 基准测试
+
+我们在 [SkillsBench](https://github.com/benchflow-ai/skillsbench)（84 个任务，11 个领域）上验证了 SkillAlchemy 的实际效果。
+
+| Agent | Model | No Skill | Curated Skill | **SkillAlchemy** |
+|-------|-------|----------|---------------|----------------|
+| Claude Code | DeepSeek-V4-Pro | 20.2% | 50.0% | **57.1%** |
+| Claude Code | Opus 4.8 | — | — | — |
+| Codex | DeepSeek-V4-Pro | — | — | — |
+| Codex | GPT-5.5 | 43.8% | 61.1% | **67.1%** |
+
+---
+
 <div align="center">
   <img src="SkillAlchemy.gif" alt="SkillAlchemy Demo" width="700">
   <br>
@@ -97,20 +112,6 @@ npx skills add agentsope/SkillAlchemy
   试试      /周星驰 你觉得喜剧的本质是什么？
 ```
 
----
-
-## SkillsBench 基准测试
-
-我们在 [SkillsBench](https://github.com/benchflow-ai/skillsbench)（84 个任务，11 个领域）上验证了 SkillAlchemy 的实际效果。
-
-| Agent | Model | No Skill | Curated Skill | **SkillAlchemy** |
-|-------|-------|----------|---------------|----------------|
-| Claude Code | DeepSeek-V4-Pro | 20.2% | 50.0% | **57.1%** |
-| Claude Code | Opus 4.8 | — | — | — |
-| Codex | DeepSeek-V4-Pro | — | — | — |
-| Codex | GPT-5.5 | 43.8% | 61.1% | **67.1%** |
-
----
 
 ## 参数
 
