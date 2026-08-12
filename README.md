@@ -66,6 +66,24 @@ npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 
 We evaluate SkillAlchemy on 87 tasks from SkillsBench v1.1 across four agent–model configurations. It improves average task pass rate by **19.9 percentage points** over no-skill execution and by **8.6 points** over the strongest automated skill-creation baseline, with aggregate performance comparable to human-curated skills.
 
+
+## Results
+
+We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent–model configurations. SkillAlchemy achieves the highest overall task pass rate in **3 of 4 configurations**.
+
+Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points** and over **MUSE-Autoskill**, the strongest automated skill-creation baseline on average, by **8.6 points**. It also slightly surpasses human-curated skills on average.
+
+| Skill Setting | Claude Code + DeepSeek-V4-Pro | Claude Code + Opus 4.8 | Codex + DeepSeek-V4-Pro | Codex + GPT-5.5 | Average |
+|---|---:|---:|---:|---:|---:|
+| No Skill | 23.4 | 45.3 | 29.7 | 45.1 | 35.9 |
+| Anthropic Skill-Creator | 31.7 | 49.2 | 32.9 | 48.5 | 40.6 |
+| OpenAI Skill-Creator | 33.3 | 49.9 | 37.0 | 48.5 | 42.2 |
+| OpenSkill | 42.3 | 51.5 | 40.7 | 49.4 | 46.0 |
+| MUSE-Autoskill | 43.2 | 53.3 | 40.2 | 52.0 | 47.2 |
+| Human-Curated Skill | 51.3 | 59.5 | **45.7** | 60.9 | 54.4 |
+| **SkillAlchemy** | **54.7** | **60.9** | 43.9 | **63.7** | **55.8** |
+
+
 <div align="center">
   <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
 </div>
