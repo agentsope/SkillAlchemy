@@ -73,20 +73,81 @@ We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent
 
 Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points** and over **MUSE-Autoskill**, the strongest automated skill-creation baseline on average, by **8.6 points**. It also slightly surpasses human-curated skills on average.
 
-| Skill Setting | Claude Code<br>DeepSeek-V4-Pro | Claude Code<br>Opus 4.8 | Codex<br>DeepSeek-V4-Pro | Codex<br>GPT-5.5 | Avg. |
-|:---|---:|---:|---:|---:|---:|
-| No Skill | 23.4 | 45.3 | 29.7 | 45.1 | 35.9 |
-| Anthropic Skill-Creator | 31.7 | 49.2 | 32.9 | 48.5 | 40.6 |
-| OpenAI Skill-Creator | 33.3 | 49.9 | 37.0 | 48.5 | 42.2 |
-| OpenSkill | 42.3 | 51.5 | 40.7 | 49.4 | 46.0 |
-| MUSE-Autoskill | 43.2 | 53.3 | 40.2 | 52.0 | 47.2 |
-| Human-Curated Skill | 51.3 | 59.5 | **45.7** | 60.9 | 54.4 |
-| **SkillAlchemy** | **54.7** | **60.9** | 43.9 | **63.7** | **55.8** |
+<table>
+  <thead>
+    <tr>
+      <th align="left">Skill Setting</th>
+      <th align="center">Claude Code<br>DeepSeek-V4-Pro</th>
+      <th align="center">Claude Code<br>Opus 4.8</th>
+      <th align="center">Codex<br>DeepSeek-V4-Pro</th>
+      <th align="center">Codex<br>GPT-5.5</th>
+      <th align="center">Avg.</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>No Skill</td>
+      <td align="right">23.4</td>
+      <td align="right">45.3</td>
+      <td align="right">29.7</td>
+      <td align="right">45.1</td>
+      <td align="right">35.9</td>
+    </tr>
+    <tr>
+      <td>Anthropic Skill-Creator</td>
+      <td align="right">31.7</td>
+      <td align="right">49.2</td>
+      <td align="right">32.9</td>
+      <td align="right">48.5</td>
+      <td align="right">40.6</td>
+    </tr>
+    <tr>
+      <td>OpenAI Skill-Creator</td>
+      <td align="right">33.3</td>
+      <td align="right">49.9</td>
+      <td align="right">37.0</td>
+      <td align="right">48.5</td>
+      <td align="right">42.2</td>
+    </tr>
+    <tr>
+      <td>OpenSkill</td>
+      <td align="right">42.3</td>
+      <td align="right">51.5</td>
+      <td align="right">40.7</td>
+      <td align="right">49.4</td>
+      <td align="right">46.0</td>
+    </tr>
+    <tr>
+      <td>MUSE-Autoskill</td>
+      <td align="right">43.2</td>
+      <td align="right">53.3</td>
+      <td align="right">40.2</td>
+      <td align="right">52.0</td>
+      <td align="right">47.2</td>
+    </tr>
+    <tr>
+      <td>Human-Curated Skill</td>
+      <td align="right">51.3</td>
+      <td align="right">59.5</td>
+      <td align="right"><strong>45.7</strong></td>
+      <td align="right">60.9</td>
+      <td align="right">54.4</td>
+    </tr>
+    <tr>
+      <td><strong>SkillAlchemy</strong></td>
+      <td align="right"><strong>54.7</strong></td>
+      <td align="right"><strong>60.9</strong></td>
+      <td align="right">43.9</td>
+      <td align="right"><strong>63.7</strong></td>
+      <td align="right"><strong>55.8</strong></td>
+    </tr>
+  </tbody>
+</table>
 
 
-<div align="center">
+<!-- <div align="center">
   <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
-</div>
+</div> -->
 
 ---
 
