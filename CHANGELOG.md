@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+**Paper-aligned method implementation**
+
+- Reframed SkillAlchemy as three stages: implicit requirement discovery,
+  evidence-grounded procedure admission, and skill package compilation
+- Added paired contrast records for component-level treatment changes
+- Made research questions, matched contexts, and source-access limits explicit in
+  the research-plan artifact
+- Added explicit General, Scoped, and Exclude admission records
+- Preserved source-stated applicability boundaries and condition-specific cases
+- Separated research evidence merging from procedure induction and admission
+- Added the corpus integrity filter described in the paper and support for
+  multi-line YAML descriptions
+- Added optional `scripts/` and `assets/` to the compiled package design
+- Removed the unsupported post-compilation validation, repair, and self-evaluation pipeline
+- Converted the SkillAlchemy, Lens, LEAP, and technical documentation content to English
+
 ## v1.0
 
 First public release.

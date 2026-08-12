@@ -1,145 +1,145 @@
-# Skill Grammar — 怎么写一个好 Skill
+# Skill Grammar — How to Write a Good Skill
 
-从 skills.sh 大量公开 skill 中提炼的写作方法论。Skill Compilation agent 在编译阶段加载此文件。
+A writing methodology distilled from a large collection of public skills on
+skills.sh. The Skill Compilation agent loads this file during compilation.
 
-**数据验证：** 基于 skills.sh 真实语料，含质量评分过滤。
+**Data validation:** Based on the real skills.sh corpus with quality-score filtering.
 
-### 语料统计快照（全量样本）
+### Corpus Statistics Snapshot (Full Sample)
 
-| 维度 | 发现 |
-|------|------|
-| 触发模式 | keyword-match 75% / hybrid 16% / context-match 8% / explicit-call 1% |
-| SOP 类型 | chain-of-steps 71% / template-fill 22% / reference 7% |
-| 篇幅 | <100行 27% / 100-300行 45% / 300-800行 26% / 800+行 1% |
-| description 含触发 | 59% 有 / 41% 没有 ⚠️ |
+| Dimension | Finding |
+|-----------|---------|
+| Trigger pattern | keyword-match 75% / hybrid 16% / context-match 8% / explicit-call 1% |
+| SOP type | chain-of-steps 71% / template-fill 22% / reference 7% |
+| Length | <100 lines 27% / 100-300 lines 45% / 300-800 lines 26% / 800+ lines 1% |
+| Description includes trigger | 59% yes / 41% no ⚠️ |
 
-### 质量加权快照（Top 60%, 111 skills, score ≥ 9/13）
+### Quality-Weighted Snapshot (Top 60%, 111 Skills, Score ≥9/13)
 
-| 维度 | 全部 | Top 60% | 变化 |
-|------|------|---------|------|
+| Dimension | All | Top 60% | Change |
+|-----------|-----|---------|--------|
 | keyword-match | 75% | 77% | → |
-| hybrid trigger | 16% | **21%** | ↑ 好 skill 更多用混合触发 |
-| context-match | 8% | **2%** | ↓↓ 纯 context 触发是弱信号 |
-| chain-of-steps | 71% | **79%** | ↑ 具体步骤 = 质量 |
-| reference 型 | 7% | **1%** | ↓↓↓ 纯参考型几乎全是低质量 |
-| <100 行 | 27% | **9%** | ↓↓↓ 太薄的 skill 被大量过滤 |
-| 100-300 行 | 45% | **54%** | ↑ 最佳篇幅区间 |
-| 300-800 行 | 26% | **37%** | ↑ 优质 skill 平均更长 |
+| hybrid trigger | 16% | **21%** | ↑ High-quality skills use hybrid triggers more often |
+| context-match | 8% | **2%** | ↓↓ Pure context triggering is a weak signal |
+| chain-of-steps | 71% | **79%** | ↑ Concrete steps correlate with quality |
+| reference type | 7% | **1%** | ↓↓↓ Pure reference skills are almost always low quality |
+| <100 lines | 27% | **9%** | ↓↓↓ Quality filtering removes many skills that are too thin |
+| 100-300 lines | 45% | **54%** | ↑ Best length range |
+| 300-800 lines | 26% | **37%** | ↑ High-quality skills are longer on average |
 
-### 好 skill 的模式关联（Top 60% 中高频共现）
+### Pattern Associations in Good Skills (Frequent Co-Occurrence in the Top 60%)
 
-| 关联模式 | 频次 | 解读 |
-|----------|:--:|------|
-| chain-of-steps + 诊断型 | 74% | 好 skill 用步骤链做诊断 |
-| keyword-match + chain-of-steps | 63% | 赢家组合：关键词触发 + 步骤化执行 |
-| chain-of-steps + 验证型 | 56% | 诊断完了要验证 |
-| chain-of-steps + 生成型 | 46% | 步骤化生成是第二常见 |
-| chain-of-steps + 对比型 | 37% | |
+| Associated patterns | Frequency | Interpretation |
+|---------------------|:---------:|----------------|
+| chain-of-steps + diagnostic | 74% | Good skills use step chains for diagnosis |
+| keyword-match + chain-of-steps | 63% | Winning combination: keyword triggers + stepwise execution |
+| chain-of-steps + validation | 56% | Diagnosis must be followed by validation |
+| chain-of-steps + generation | 46% | Stepwise generation is the second most common pattern |
+| chain-of-steps + comparison | 37% | |
 
 ---
 
-## 1. SKILL.md 格式规范
+## 1. SKILL.md Format
 
-### Frontmatter（YAML）
+### Frontmatter (YAML)
 
 ```yaml
 ---
-name: skill-name                    # 1-64字符，小写字母+数字+连字符
-description: >-                     # 1-1024字符，功能+触发条件
+name: skill-name                    # 1-64 characters: lowercase letters, digits, and hyphens
+description: >-                     # 1-1024 characters: function + trigger conditions
   What this skill does. When to use it.
-version: 0.1.0
 ---
 ```
 
-**description 是唯一的触发机制**，必须同时包含：
-- 功能描述（skill 做什么）
-- 触发条件（什么时候用）
+**The description is the only trigger mechanism.** It must include both:
+- A functional description (what the skill does)
+- Trigger conditions (when to use it)
 
 ```
-✅ 好: "Extracts text and tables from PDF files, fills PDF forms, and merges
+✅ Good: "Extracts text and tables from PDF files, fills PDF forms, and merges
        multiple PDFs. Use when working with PDF documents or when the user
        mentions PDFs, forms, or document extraction."
 
-❌ 差: "Helps with PDFs."
+❌ Bad: "Helps with PDFs."
 ```
 
-### Markdown 正文
+### Markdown Body
 
-SKILL.md body 在 skill 被触发时加载。建议 <5000 tokens。
+The SKILL.md body loads when the skill is triggered. Recommended: <5,000 tokens.
 
 ---
 
-## 2. 触发模式（5 种）
+## 2. Trigger Patterns (5 Types)
 
 ### 2.1 keyword-match
-最常用。用户在对话中说了特定词就触发。
-- **写法**：description 里埋 3-6 个触发关键词
-- **适用**：工具类 skill、领域知识 skill
-- **示例**：`security-audit` → "Use when security audit, vulnerability scan, OWASP, dependency check"
+The most common pattern. It triggers when the user says specific words in a conversation.
+- **How to write it:** Put 3-6 trigger keywords in the description.
+- **Best for:** Tool skills and domain-knowledge skills.
+- **Example:** `security-audit` → "Use when security audit, vulnerability scan, OWASP, dependency check"
 
 ### 2.2 context-match
-根据工作目录或文件类型自动触发。
-- **写法**：description 里描述上下文条件
-- **适用**：项目级 skill（Docker、Git、CI/CD）
-- **示例**：`docker-development` → "Use when working with Dockerfiles, docker-compose, or containerization"
+Triggers automatically based on the working directory or file type.
+- **How to write it:** Describe contextual conditions in the description.
+- **Best for:** Project-level skills (Docker, Git, CI/CD).
+- **Example:** `docker-development` → "Use when working with Dockerfiles, docker-compose, or containerization"
 
 ### 2.3 explicit-call
-用户显式调用 `/skill-name` 或 `@skill-name`。
-- **写法**：name 就是触发词，description 解释功能
-- **适用**：需要明确意图的 skill（安全性要求高的操作）
-- **示例**：`security-review` → 用户主动说 "security review"
+The user explicitly invokes `/skill-name` or `@skill-name`.
+- **How to write it:** The name is the trigger; the description explains the function.
+- **Best for:** Skills that require explicit intent, such as high-risk operations.
+- **Example:** `security-review` → the user explicitly says "security review"
 
 ### 2.4 hybrid
-keyword + context 组合。description 里同时埋关键词和上下文。
-- **写法**：先写关键词，再写场景
-- **适用**：复杂触发条件
-- **示例**：`deploy-check` → "Use before git push when deploy, release, or production is mentioned"
+Combines keyword and context. The description includes both keywords and context.
+- **How to write it:** State keywords first, then the scenario.
+- **Best for:** Complex trigger conditions.
+- **Example:** `deploy-check` → "Use before git push when deploy, release, or production is mentioned"
 
 ### 2.5 always-on
-每次对话都加载。用于元技能或规则注入。
-- **写法**：description 极宽泛，或设为 agent-rules
-- **适用**：AGENTS.md 生成、全局规则
-- **警告**：容易滥用——只在确实每次都需要时用
+Loads in every conversation. Used for meta-skills or rule injection.
+- **How to write it:** Make the description very broad or designate it as agent-rules.
+- **Best for:** AGENTS.md generation and global rules.
+- **Warning:** Easy to misuse; use only when it is genuinely needed every time.
 
 ---
 
-## 3. SOP 模板（4 种）
+## 3. SOP Templates (4 Types)
 
 ### 3.1 chain-of-steps
-顺序执行步骤。Step 1→2→3→4→5。
+Execute steps sequentially: Step 1→2→3→4→5.
 ```
 ## Instructions
-### Step 1: [动作]
-具体做什么。用什么工具。期望什么输出。
+### Step 1: [Action]
+What to do, which tool to use, and what output to expect.
 
-### Step 2: [动作]
+### Step 2: [Action]
 ...
 ```
-- **适用**：pipeline 式操作（PDF 处理、数据清洗、部署）
-- **关键规则**：
-  - 每步一个可验证的输出
-  - 步骤间有依赖关系的标注
-  - 失败时跳到哪一步
+- **Best for:** Pipeline operations such as PDF processing, data cleaning, and deployment.
+- **Key rules:**
+  - Every step has a verifiable output.
+  - Dependencies between steps are explicit.
+  - Failure paths specify which step to jump to.
 
 ### 3.2 model-card-driven
-每个概念一张操作卡片，运行时按需 Read。
+Give each concept an operation card, read on demand at runtime.
 ```
 ## Core Models
 
 | # | Model | When to Use | Key Action |
 |---|-------|-------------|------------|
-| H1 | **模型名** | 触发条件 | 核心操作 |
+| H1 | **Model name** | Trigger condition | Core operation |
 
 Full cards in `references/sop_models.md`.
 ```
-- **适用**：复杂决策 skill（多个独立概念/框架）
-- **关键规则**：
-  - 每张卡片 8 字段：When-to-use / Inputs / Action / Output / Evidence / Failure Mode / Boundary / Confidence
-  - SKILL.md 只放摘要表，卡片在 references/
-  - 运行时协议步骤 1：Read sop_models.md 匹配模型
+- **Best for:** Complex decision skills with multiple independent concepts or frameworks.
+- **Key rules:**
+  - Every card has 8 fields: When-to-use / Inputs / Action / Output / Evidence / Failure Mode / Boundary / Confidence.
+  - SKILL.md contains only the summary table; cards live in `references/`.
+  - Runtime Protocol Step 1 reads `sop_models.md` to match a model.
 
 ### 3.3 decision-tree
-if-then 分支结构。根据用户输入判断走哪条路径。
+An if-then branching structure that selects a path based on user input.
 ```
 ## Decision Flow
 
@@ -151,14 +151,14 @@ if-then 分支结构。根据用户输入判断走哪条路径。
    → Yes: [action B]
    → No: [default action]
 ```
-- **适用**：诊断类 skill（bug 排查、安全审计、代码审查）
-- **关键规则**：
-  - 每个分支有明确的判断条件
-  - 叶节点是一个具体操作，不是另一个判断
-  - 有 default/fallback 分支
+- **Best for:** Diagnostic skills such as bug investigation, security audits, and code review.
+- **Key rules:**
+  - Every branch has an explicit decision condition.
+  - Each leaf node is a concrete action, not another decision.
+  - Include a default/fallback branch.
 
 ### 3.4 template-fill
-用户提供信息，skill 填入模板。
+The user provides information, and the skill fills a template.
 ```
 ## How to Use
 
@@ -167,41 +167,42 @@ if-then 分支结构。根据用户输入判断走哪条路径。
 3. Fill: insert into template at `templates/[name].md`
 4. Output: rendered [output_type]
 ```
-- **适用**：文档生成、报告填写、PR 模板
-- **关键规则**：
-  - 必填字段 vs 可选字段分清楚
-  - 每个字段有验证规则
-  - 模板路径明确标注
+- **Best for:** Document generation, report completion, and PR templates.
+- **Key rules:**
+  - Clearly distinguish required and optional fields.
+  - Give every field a validation rule.
+  - State the template path explicitly.
 
 ---
 
-## 4. 输出约束（5 种）
+## 4. Output Constraints (5 Types)
 
 ### 4.1 analysis-report
-先结论，再展开。用自然段落。
+Lead with the conclusion, then expand in natural paragraphs.
 ```
-先给一句话结论，再展开。
-不把整个模型卡片贴出来。
+Lead with a one-sentence conclusion, then expand.
+Do not paste the entire model card.
 ```
-- **禁止词**：「根据框架分析...」「按照模型卡片...」「让我来系统分析...」
-- **回答完就停**，不问「需要我进一步展开吗」
+- **Forbidden phrases:** "Analyzing this with the framework...", "Following the
+  model card...", and "Let me analyze this systematically..."
+- **Stop after answering.** Do not ask, "Would you like me to expand further?"
 
 ### 4.2 executable-code
-代码块 + 简短解释。
+Code block + brief explanation.
 ```
 Code first, explanation after.
 One code block per step.
 ```
 
 ### 4.3 conversational
-第一人称对话。persona 模式。
+First-person dialogue for persona mode.
 ```
-不分点论述，不列一二三四。
-回应第一句就是答案，不是「让我来分析一下」。
+Do not use bullet points or numbered lists.
+The first sentence is the answer, not "Let me analyze this."
 ```
 
 ### 4.4 checklist-verify
-逐项检查，每项标注 pass/fail。
+Check each item and mark it pass/fail.
 ```
 ## Verification Checklist
 - [ ] Item 1 — check X against Y
@@ -209,261 +210,281 @@ One code block per step.
 ```
 
 ### 4.5 mixed
-根据问题类型切换输出模式。需要 `## Output Modes` 表格定义。
+Switch output modes based on the question type. Requires an `## Output Modes` table.
 
 ---
 
-## 5. 边界模式（6 类）
+## 5. Boundary Patterns (6 Types)
 
 ### 5.1 source-bound
-限定信息来源。
+Restrict information sources.
 ```
-只基于公开文档/官方仓库/指定出处。不引用未验证的论坛帖子。
+Use only public documentation, official repositories, or specified sources.
+Do not cite unverified forum posts.
 ```
 
 ### 5.2 version-bound
-版本/时间截止。
+Set a version or time cutoff.
 ```
-信息截止 2026 年 5 月。不覆盖后续版本变更。
+Information cutoff: May 2026. Later version changes are not covered.
 ```
 
 ### 5.3 capability-bound
-明确能做/不能做什么。
+State explicitly what the skill can and cannot do.
 ```
-能：分析 SQL 查询性能。不能：修改生产数据库。
+Can: analyze SQL query performance. Cannot: modify a production database.
 ```
 
 ### 5.4 scope-bound
-限定适用领域。
+Restrict the applicable domain.
 ```
-适用于 Web 应用安全审计。不适用于移动端或 IoT。
+Applicable to web application security audits. Not applicable to mobile or IoT.
 ```
 
 ### 5.5 legal-bound
-免责/合规声明。
+Provide a disclaimer or compliance statement.
 ```
-不提供法律建议。仅供参考，需要专业审计验证。
+This is not legal advice. It is for reference only and requires verification by
+a professional auditor.
 ```
 
 ### 5.6 confidence-bound
-标注不确定度。
+Label uncertainty.
 ```
-高置信度：基于官方文档。低置信度：基于社区讨论，需验证。
-```
-
----
-
-## 6. Persona 模式专项
-
-### 6.1 必选章节（8 个）
-
-| # | 章节 | 作用 | 建议行数 |
-|---|------|------|---------|
-| 1 | `## 角色扮演规则` | 输出格式最强约束 | 6-10 |
-| 2 | `## 身份` | 3-5 句第一人称握手 | 3-5 |
-| 3 | `## 我看世界的方式` | 3-5 个心智模型，每段 ≤5 行 | 15-25 |
-| 4 | `## 我怎么说话` | 句式/词汇/节奏/幽默/确定性 + 绝不会说 + 标志句式 | 10-15 |
-| 5 | `## 决策启发式` | 3-5 条 if-X-then-Y 规则 | 5-10 |
-| 6 | `## 运行时协议` | 5 步 SOP 驱动流程 | 15-20 |
-| 7 | `## 边界` | ~5 行，不能代表真人 | 4-6 |
-| 8 | `## 参考` | 指针到 sop_models.md + research_notes.md | 1-2 |
-
-### 6.2 「我绝不会说」—— 辨识度关键
-
-比正向描述更能建立辨识度。2-3 句这个人永远不会说的话。
-
-```
-✅ 好:
-芒格绝不会说"根据我的经验"——他说"我见过太多人在这上面栽跟头"。
-乔布斯绝不会说"这个方向也有道理"——他说"这是 shit"或"这是 amazing"。
-
-❌ 差:
-"我不会说不专业的话"——太泛，没有辨识度。
-```
-
-### 6.3 「我的标志句式」—— 一眼认出
-
-1 句标志性表达，放在「我怎么说话」末尾。
-
-```
-费曼: "如果你不能给大一新生讲清楚，说明你没真懂。"
-乔布斯: "Stop，你的问题本身就有问题。"
-```
-
-### 6.4 决策启发式 —— falsifiable
-
-每条必须是可证伪的规则。
-
-```
-❌ 不合格: "Think long-term." → 不可证伪，什么场景都适用
-✅ 合格: "如果一个问题在三分钟内想不清楚，放进 Too Hard 筐，跳过。" → 可证伪
+High confidence: based on official documentation. Low confidence: based on
+community discussion and requires verification.
 ```
 
 ---
 
-## 7. Tool 模式专项
+## 6. Persona Mode
 
-### 7.1 必选章节（7 个）
+### 6.1 Required Sections (8)
 
-| # | 章节 | 关键 |
-|---|------|------|
-| 1 | `## Activation Rules` | 触发 + 不触发的具体例子各 4-5 个 |
-| 2 | `## Agentic Protocol` | 可执行步骤，不是「考虑 X」而是「做 X 然后 Y」 |
-| 3 | `## Core Operation Models` | H1-Hn + M1-Mn 摘要表，完整卡片在 references/ |
-| 4 | `## Output Style` | 先结论后展开、禁词列表、不用 markdown 表格 |
-| 5 | `## Output Modes` | 4-7 种模式表格 |
-| 6 | `## Boundary Rules` | 7-8 条 |
-| 7 | `## References` | 指针表 |
+| # | Section | Purpose | Suggested lines |
+|---|---------|---------|:---------------:|
+| 1 | `## Role-Playing Rules` | Strongest output-format constraint | 6-10 |
+| 2 | `## Identity` | A 3-5 sentence first-person handshake | 3-5 |
+| 3 | `## How I See the World` | 3-5 mental models, each ≤5 lines | 15-25 |
+| 4 | `## How I Speak` | Sentence patterns, vocabulary, rhythm, humor, certainty, forbidden phrases, and signature phrase | 10-15 |
+| 5 | `## Decision Heuristics` | 3-5 if-X-then-Y rules | 5-10 |
+| 6 | `## Runtime Protocol` | A 5-step SOP-driven process | 15-20 |
+| 7 | `## Boundaries` | ~5 lines; cannot represent the real person | 4-6 |
+| 8 | `## References` | Pointers to sop_models.md + research_notes.md | 1-2 |
 
-### 7.2 Output Style 禁词
+### 6.2 "Things I Would Never Say" — The Key to Distinctiveness
 
-Tool 模式最常犯的错误是「套话」。
+This establishes distinctiveness better than positive descriptions. Include 2-3
+sentences the person would never say.
 
 ```
-禁止词:
-- 「根据框架分析...」
-- 「按照模型卡片...」
-- 「让我来系统分析...」
-- 「需要我进一步展开吗」
+✅ Good:
+Munger would never say, "In my experience." He would say, "I have seen too many
+people fail at this."
+Jobs would never say, "That direction also has merit." He would say, "This is
+shit," or, "This is amazing."
 
-引用来源时说「PG 在 2012 年文章里指出...」
-不说「根据 references/sop_models.md 的 H1 模型卡片...」
+❌ Bad:
+"I would not say anything unprofessional." This is too generic to be distinctive.
+```
+
+### 6.3 "My Signature Phrase" — Immediately Recognizable
+
+Place one signature expression at the end of How I Speak.
+
+```
+Feynman: "If you cannot explain it clearly to a first-year student, you do not
+really understand it."
+Jobs: "Stop. The question itself is wrong."
+```
+
+### 6.4 Decision Heuristics — Falsifiable
+
+Every rule must be falsifiable.
+
+```
+❌ Invalid: "Think long-term." → Not falsifiable; it applies to every situation.
+✅ Valid: "If a problem cannot be figured out in three minutes, put it in the
+Too Hard pile and skip it." → Falsifiable.
 ```
 
 ---
 
-## 8. 反模式清单（7 个）
+## 7. Tool Mode
 
-| # | 反模式 | 后果 | 修正 |
-|---|--------|------|------|
-| 1 | 触发条件太宽 | 误触发，每个对话都激活 | 缩小关键词，加 context 约束 |
-| 2 | description 只写功能不写触发 | 永远不会被调用 | 加 "Use when..." |
-| 3 | 没有边界声明 | 用户预期失控 | 加 Boundary Rules / 边界 |
-| 4 | SOP 太模糊（"考虑 X"） | 不可执行 | 改成 "做 X 然后 Y" |
-| 5 | SKILL.md 太长（>8000 tokens） | 每次触发都加载，浪费 context | 移内容到 references/ |
-| 6 | 引用不存在的文件 | 运行时 Read 失败 | 确认所有路径存在 |
-| 7 | 虚构引语（persona） | 失去可信度 | 只引用公开可验证的引语 |
-| 8 | **纯参考型 skill**（无具体步骤） | 数据：reference 型在好 skill 中仅 1%，全集中差 skill 中。没有可执行步骤的 skill 几乎没用 | 改成 chain-of-steps 或 model-card-driven |
-| 9 | **<100 行太薄** | 数据：<100 行在好 skill 中仅 9%，全集中差 skill 中（27%→9%）| 至少 100 行，目标 100-300 |
+### 7.1 Required Sections (7)
+
+| # | Section | Key requirement |
+|---|---------|-----------------|
+| 1 | `## Activation Rules` | 4-5 concrete triggering and non-triggering examples each |
+| 2 | `## Agentic Protocol` | Executable steps: "do X, then Y," not "consider X" |
+| 3 | `## Core Operation Models` | H1-Hn + M1-Mn summary tables; full cards in `references/` |
+| 4 | `## Output Style` | Conclusion first, forbidden-phrase list, no Markdown tables |
+| 5 | `## Output Modes` | A table defining 4-7 modes |
+| 6 | `## Boundary Rules` | 7-8 rules |
+| 7 | `## References` | Pointer table |
+
+### 7.2 Forbidden Output-Style Phrases
+
+The most common tool-mode mistake is boilerplate language.
+
+```
+Forbidden phrases:
+- "Analyzing this with the framework..."
+- "Following the model card..."
+- "Let me analyze this systematically..."
+- "Would you like me to expand further?"
+
+When citing a source, say, "PG argued in a 2012 essay..."
+Do not say, "According to the H1 model card in references/sop_models.md..."
+```
 
 ---
 
-## 9. 数据背书的质量信号
+## 8. Anti-Pattern Checklist (9 Items)
 
-基于 大量 skills 的质量评分分析（≥9/13 分 = 好 skill），以下是好 skill 的量化特征：
+| # | Anti-pattern | Consequence | Correction |
+|---|--------------|-------------|------------|
+| 1 | Trigger conditions are too broad | False triggers; activates in every conversation | Narrow the keywords and add contextual constraints |
+| 2 | Description states function but not trigger | The skill is never invoked | Add "Use when..." |
+| 3 | No boundary declaration | User expectations become uncontrolled | Add Boundary Rules / Boundaries |
+| 4 | SOP is too vague ("consider X") | Not executable | Change it to "do X, then Y" |
+| 5 | SKILL.md is too long (>8,000 tokens) | Loads on every trigger and wastes context | Move content into `references/` |
+| 6 | References nonexistent files | Runtime read fails | Confirm every path exists |
+| 7 | Fabricated quotations (persona) | Loss of credibility | Quote only publicly verifiable statements |
+| 8 | **Pure reference skill** (no concrete steps) | Data: reference skills are only 1% of good skills and are concentrated among poor skills. A skill without executable steps is almost useless | Convert it to chain-of-steps or model-card-driven |
+| 9 | **Too thin at <100 lines** | Data: <100-line skills are only 9% of good skills and are concentrated among poor skills (27%→9%) | Use at least 100 lines; target 100-300 |
 
-### 如果只能做 3 件事
+---
 
-1. **写具体步骤，不要写参考文档。** chain-of-steps 在好 skill 中占 79%（全部仅 71%），reference 型几乎从好 skill 中消失（7%→1%）。
-2. **用 hybrid trigger，不要只用 context。** hybrid 在好 skill 中从 16% 升到 21%，context-match 从 8% 降到 2%。
-3. **控制在 100-800 行。** <100 行被质量过滤器大量排除（27%→9%），100-300 行是最稳区间（45%→54%）。
+## 9. Data-Backed Quality Signals
 
-### 赢家组合
+Based on quality-score analysis of a large skill corpus (≥9/13 = good), the
+following are quantified characteristics of good skills:
 
-好 skill 最常见的模式组合（Top 60% 中）：
+### If You Can Do Only Three Things
+
+1. **Write concrete steps, not reference documentation.** chain-of-steps appears
+   in 79% of good skills versus 71% overall; reference skills nearly disappear
+   among good skills (7%→1%).
+2. **Use hybrid triggers, not context alone.** hybrid rises from 16% overall to
+   21% among good skills, while context-match falls from 8% to 2%.
+3. **Keep the skill between 100 and 800 lines.** Quality filtering removes many
+   skills below 100 lines (27%→9%); 100-300 lines is the most reliable range
+   (45%→54%).
+
+### Winning Combination
+
+The most common pattern combination among good skills in the top 60%:
 
 ```
 keyword-match trigger
   + chain-of-steps SOP
-  + 诊断型操作
-  + 验证型操作
-  + 100-300 行篇幅
-  + 有边界声明
+  + diagnostic operation
+  + validation operation
+  + 100-300 lines
+  + boundary declaration
 ```
 
-这个组合覆盖了 63% 的好 skill。
+This combination covers 63% of good skills.
 
-### 质量评分的 13 分
+### The 13-Point Quality Score
 
-| 维度 | 分值 | 检查 |
-|------|:--:|------|
-| frontmatter 有 name | 1 | 基本 |
-| frontmatter 有 description | 1 | 基本 |
-| description 含触发词 | 2 | **加权** — 少了这个 skill 不会被调用 |
-| description 具体（>80 字符） | 1 | |
-| ≥3 个 section | 1 | |
-| 有边界声明 | 2 | **加权** — 用户预期管理的核心 |
-| ≥5 个具体步骤 | 2 | **加权** — 可执行性的核心 |
-| 有示例 section | 1 | |
-| 100-400 行篇幅 | 1 | |
-| 有参考/相关 section | 1 | |
-| <30 行（扣分） | -2 | 太薄是硬伤 |
+| Dimension | Points | Check |
+|-----------|:------:|-------|
+| Frontmatter has `name` | 1 | Basic |
+| Frontmatter has `description` | 1 | Basic |
+| Description includes trigger words | 2 | **Weighted**—without this, the skill will not be invoked |
+| Description is specific (>80 characters) | 1 | |
+| ≥3 sections | 1 | |
+| Has boundary declaration | 2 | **Weighted**—core to managing user expectations |
+| ≥5 concrete steps | 2 | **Weighted**—core to executability |
+| Has an examples section | 1 | |
+| Length is 100-400 lines | 1 | |
+| Has a references/related section | 1 | |
+| <30 lines (penalty) | -2 | Being too thin is a critical flaw |
 
-**好 skill 的分水岭：≥9 分。** corpus 中 约 60%达标。
+**Threshold for a good skill: ≥9 points.** About 60% of the corpus qualifies.
 
 ---
 
-## 10. 三级质量金字塔
+## 10. Three-Tier Quality Pyramid
 
-基于 大量 skills 的质量评分分析：
+Based on quality-score analysis of a large skill corpus:
 
-### 精英层（Top 10%, score ≥ 11, 18 skills）
+### Elite Tier (Top 10%, Score ≥11, 18 Skills)
 
-**100% 命中率特征：**
-- 100% 用 chain-of-steps（无一例外）
-- 100% 有具体步骤（≥5 个可执行步骤）
-- 100% description 含触发词 + 具体描述（>80 字符）
-- 94% 有边界声明
-- 89% 同时做诊断 + 验证
+**Characteristics with a 100% hit rate:**
+- 100% use chain-of-steps, without exception.
+- 100% have concrete steps (≥5 executable steps).
+- 100% have a description with trigger wording and specific detail (>80 characters).
+- 94% have boundary declarations.
+- 89% include both diagnosis and validation.
 
-**精英模板（可直接复用）：**
+**Elite template (ready to reuse):**
 
 ```
-触发: keyword-match 或 hybrid
+Trigger: keyword-match or hybrid
 SOP: chain-of-steps
-操作: 诊断 + 验证（缺一不可）
-篇幅: 200-350 行
-必备: 边界声明 + 具体步骤 + 触发描述 + 多 section
-加分: 示例 section + 参考 section
+Operations: diagnosis + validation (both required)
+Length: 200-350 lines
+Required: boundary declaration + concrete steps + trigger description + multiple sections
+Bonus: examples section + references section
 ```
 
-**精英 skill 示例：** `systematic-debugging`, `subagent-driven-development`, `dispatching-parallel-agents`, `finishing-a-development-branch`, `seo-audit`, `verification-before-completion`
+**Elite skill examples:** `systematic-debugging`, `subagent-driven-development`,
+`dispatching-parallel-agents`, `finishing-a-development-branch`, `seo-audit`,
+`verification-before-completion`
 
-### 中间层（Top 60%, score ≥ 9, 111 skills）
+### Middle Tier (Top 60%, Score ≥9, 111 Skills)
 
 - 79% chain-of-steps, 20% template-fill
-- hybrid trigger 比全量多 5pp
-- 100-300 行占 54%
+- hybrid triggers are 5 percentage points more common than in the full sample.
+- 54% are 100-300 lines.
 
-### 底层（Bottom 40%, score < 9, 75 skills）
+### Bottom Tier (Bottom 40%, Score <9, 75 Skills)
 
-- 纯参考型（reference）几乎全集中在这里
-- 平均 54 行（精英层 273 行，差距 5x）
-- 典型弱点：too_thin + too_few_sections + description_too_vague
+- Pure reference skills are concentrated almost entirely in this tier.
+- Average length is 54 lines versus 273 lines for the elite tier, a 5× gap.
+- Typical weaknesses: `too_thin` + `too_few_sections` + `description_too_vague`.
 
-### 一句话总结
+### One-Sentence Summary
 
-> 如果你想写一个好 skill：chain-of-steps + 诊断 + 验证 + 边界声明 + 200-350 行 + 描述具体含触发词。如果你想写一个精英 skill：上面全做，再加示例和参考。
+> To write a good skill: chain-of-steps + diagnosis + validation + boundary
+> declaration + 200-350 lines + a specific description with trigger wording.
+> To write an elite skill, do all of the above and add examples and references.
 
 ---
 
-## 11. 质量检查清单
+## 11. Compilation Checklist
 
-编译完成后自检：
+Apply this checklist while rendering the admitted content. It guides organization
+and presentation; it is not a separate post-compilation validation stage and must
+not introduce new procedures or broaden admitted scope.
 
-### 结构
-- [ ] frontmatter: name + description 到位
-- [ ] description 包含功能 + 触发条件
-- [ ] 所有必选 section 存在
+### Structure
+- [ ] Frontmatter includes `name` and `description`.
+- [ ] Description includes function and trigger conditions.
+- [ ] All required sections are present.
 - [ ] SKILL.md body <5000 tokens
 
-### 可执行性
-- [ ] SOP 每步有具体操作（不是「考虑 X」）
-- [ ] 每步有可验证的输出
-- [ ] 运行时协议可执行（Read → match → act → verify）
+### Executability
+- [ ] Every SOP step has a concrete action, not "consider X."
+- [ ] Every step has a verifiable output.
+- [ ] Runtime Protocol is executable (Read → match → act → verify).
 
-### 辨识度（persona）
-- [ ] 「我绝不会说」2-3 条具体禁止项
-- [ ] 「我的标志句式」1 条
-- [ ] 决策启发式每条可证伪
-- [ ] 100 字内可辨识
+### Distinctiveness (Persona)
+- [ ] "Things I Would Never Say" contains 2-3 specific prohibited phrases.
+- [ ] "My Signature Phrase" contains one phrase.
+- [ ] Every Decision Heuristic is falsifiable.
+- [ ] Persona is recognizable within 100 words.
 
-### 边界
-- [ ] 边界声明清晰（做了什么 + 不能做什么）
-- [ ] 信息截止日期
-- [ ] 置信度标注
+### Boundaries
+- [ ] Boundary declaration is clear about what the skill does and cannot do.
+- [ ] Information cutoff date is present.
+- [ ] Confidence is labeled.
 
-### 证据
-- [ ] 关键声明有来源
-- [ ] 引用格式自然（不说「根据 references/sop_models.md 的 H1」）
-- [ ] 无虚构引语
+### Evidence
+- [ ] Key claims have sources.
+- [ ] Citation style is natural; do not say, "According to H1 in references/sop_models.md."
+- [ ] No fabricated quotations.

@@ -73,6 +73,6 @@ We evaluate SkillAlchemy on 87 tasks from SkillsBench v1.1 across four agent–m
 ---
 
 <p align="center">
-  <a href="技术文档.md"><strong>Documentation</strong></a> ·
+  <a href="TECHNICAL.md"><strong>Documentation</strong></a> ·
   <a href="LICENSE"><strong>MIT License</strong></a>
 </p>

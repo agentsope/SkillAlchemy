@@ -73,6 +73,6 @@ npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ---
 
 <p align="center">
-  <a href="技术文档.md"><strong>技术文档</strong></a> ·
+  <a href="TECHNICAL.md"><strong>技术文档</strong></a> ·
   <a href="LICENSE"><strong>MIT License</strong></a>
 </p>

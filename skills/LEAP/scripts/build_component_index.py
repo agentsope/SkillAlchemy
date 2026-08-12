@@ -34,6 +34,7 @@ def parse_skill_md(content: str) -> dict:
         "trigger_keywords": [],
         "sop_pattern": None,
         "line_count": 0,
+        "has_nonempty_instructions": False,
     }
 
     lines = content.split("\n")
@@ -44,22 +45,43 @@ def parse_skill_md(content: str) -> dict:
         end = content.find("---", 3)
         if end > 0:
             fm_text = content[3:end]
-            for line in fm_text.strip().split("\n"):
-                if ":" in line:
-                    key, _, val = line.partition(":")
-                    result["frontmatter"][key.strip()] = val.strip()
+            fm_lines = fm_text.strip().split("\n")
+            i = 0
+            while i < len(fm_lines):
+                line = fm_lines[i]
+                if ":" not in line:
+                    i += 1
+                    continue
+                key, _, val = line.partition(":")
+                key = key.strip()
+                val = val.strip()
+                if val in {"|", ">", "|-", ">-", "|+", ">+"}:
+                    block = []
+                    i += 1
+                    while i < len(fm_lines) and (
+                        not fm_lines[i].strip() or fm_lines[i][0].isspace()
+                    ):
+                        block.append(fm_lines[i].strip())
+                        i += 1
+                    result["frontmatter"][key] = " ".join(
+                        part for part in block if part
+                    )
+                    continue
+                result["frontmatter"][key] = val.strip("\"'")
+                i += 1
             content_body = content[end + 3:]
         else:
             content_body = content
     else:
         content_body = content
 
-    # Detect description trigger patterns (Use when... / 触发...)
+    result["has_nonempty_instructions"] = bool(content_body.strip())
+
+    # Detect description trigger patterns such as "Use when...".
     desc = result["frontmatter"].get("description", "")
     if desc:
         result["has_description_trigger"] = bool(
             re.search(r"Use\s+(when|this|for)\b", desc, re.IGNORECASE)
-            or re.search(r"触发|使用场景|适用", desc)
         )
         # Extract trigger keywords from description
         trigger_match = re.findall(r"`([^`]+)`", desc)
@@ -96,6 +118,19 @@ def parse_skill_md(content: str) -> dict:
     result["operation_types"] = detect_operation_types(content_body)
 
     return result
+
+
+def is_corpus_eligible(parsed: dict, skill_meta: dict) -> bool:
+    """Apply the paper's integrity filter before grammar statistics are computed."""
+    frontmatter = parsed.get("frontmatter", {})
+    has_metadata = bool(frontmatter.get("name") and frontmatter.get("description"))
+    has_source_id = bool(
+        skill_meta.get("key")
+        and skill_meta.get("owner")
+        and skill_meta.get("repo")
+        and skill_meta.get("name")
+    )
+    return bool(has_metadata and parsed.get("has_nonempty_instructions") and has_source_id)
 
 
 def detect_sop_pattern(parsed: dict) -> str | None:
@@ -137,12 +172,12 @@ def detect_operation_types(text: str) -> list[str]:
     """Detect what operation types the skill performs."""
     ops = []
     patterns = {
-        "extract": [r"\bextract\b", r"\bparse\b", r"\bscrape\b", r"提取"],
-        "diagnose": [r"\bdiagnos\b", r"\bdebug\b", r"\baudit\b", r"\bcheck\b", r"\binspect\b", r"诊断", r"检查"],
-        "transform": [r"\btransform\b", r"\bconvert\b", r"\bmigrate\b", r"\brefactor\b", r"转换"],
-        "validate": [r"\bvalid\b", r"\bverify\b", r"\blint\b", r"\btest\b", r"\bensure\b", r"验证"],
-        "generate": [r"\bgenerat\b", r"\bcreat\b", r"\bbuild\b", r"\bscaffold\b", r"生成", r"创建"],
-        "compare": [r"\bcompar\b", r"\bdiff\b", r"\bversus\b", r"\breview\b", r"对比", r"比较"],
+        "extract": [r"\bextract\b", r"\bparse\b", r"\bscrape\b"],
+        "diagnose": [r"\bdiagnos\b", r"\bdebug\b", r"\baudit\b", r"\bcheck\b", r"\binspect\b"],
+        "transform": [r"\btransform\b", r"\bconvert\b", r"\bmigrate\b", r"\brefactor\b"],
+        "validate": [r"\bvalid\b", r"\bverify\b", r"\blint\b", r"\btest\b", r"\bensure\b"],
+        "generate": [r"\bgenerat\b", r"\bcreat\b", r"\bbuild\b", r"\bscaffold\b"],
+        "compare": [r"\bcompar\b", r"\bdiff\b", r"\bversus\b", r"\breview\b"],
     }
     text_lower = text.lower()
     for op_type, pats in patterns.items():
@@ -178,7 +213,7 @@ def score_skill_quality(parsed: dict) -> tuple[int, list[str], list[str]]:
     else:
         weaknesses.append("missing_description")
 
-    if re.search(r"Use\s+(when|this|for)\b", desc, re.IGNORECASE) or re.search(r"触发|使用场景|适用", desc):
+    if re.search(r"Use\s+(when|this|for)\b", desc, re.IGNORECASE):
         score += 2
         strengths.append("description_has_trigger")
     elif desc and len(desc) < 30:
@@ -196,11 +231,11 @@ def score_skill_quality(parsed: dict) -> tuple[int, list[str], list[str]]:
 
     has_boundary = any(
         kw in h for h in headings
-        for kw in ["boundary", "limitation", "边界", "限制", "cannot", "不能"]
+        for kw in ["boundary", "limitation", "cannot"]
     ) or any(
         kw in s.get("content", "").lower()
         for s in parsed.get("sections", [])
-        for kw in ["不能", "cannot", "don't use", "limitation"]
+        for kw in ["cannot", "don't use", "limitation"]
     )
     if has_boundary:
         score += 2
@@ -218,7 +253,7 @@ def score_skill_quality(parsed: dict) -> tuple[int, list[str], list[str]]:
     else:
         weaknesses.append("no_concrete_steps")
 
-    has_examples = any("example" in h or "示例" in h or "demo" in h for h in headings)
+    has_examples = any("example" in h or "demo" in h for h in headings)
     if has_examples:
         score += 1
         strengths.append("has_examples_section")
@@ -233,7 +268,7 @@ def score_skill_quality(parsed: dict) -> tuple[int, list[str], list[str]]:
     elif lc > 1000:
         weaknesses.append("too_long")
 
-    has_refs = any("reference" in h or "参考" in h or "related" in h for h in headings)
+    has_refs = any("reference" in h or "related" in h for h in headings)
     if has_refs:
         score += 1
         strengths.append("has_references_section")
@@ -248,7 +283,7 @@ def extract_trigger_pattern(parsed: dict) -> str:
 
     has_keywords = any(
         kw in desc for kw in [
-            "use when", "use this", "use for", "触发", "适用", "when you", "when the",
+            "use when", "use this", "use for", "when you", "when the",
         ]
     )
     has_context = any(
@@ -275,7 +310,7 @@ def extract_boundary_pattern(parsed: dict) -> list[str]:
     boundaries = []
     boundary_section = None
     for s in parsed["sections"]:
-        if any(kw in s["heading"].lower() for kw in ["boundary", "limitation", "边界", "限制"]):
+        if any(kw in s["heading"].lower() for kw in ["boundary", "limitation"]):
             boundary_section = s["content"]
             break
 
@@ -283,15 +318,15 @@ def extract_boundary_pattern(parsed: dict) -> list[str]:
         return boundaries
 
     text = boundary_section.lower()
-    if any(kw in text for kw in ["source", "based on", "official", "来源"]):
+    if any(kw in text for kw in ["source", "based on", "official"]):
         boundaries.append("source-bound")
-    if any(kw in text for kw in ["version", "截止", "as of", "截止"]):
+    if any(kw in text for kw in ["version", "as of"]):
         boundaries.append("version-bound")
-    if any(kw in text for kw in ["cannot", "not able", "don't", "不能", "无法", "can not"]):
+    if any(kw in text for kw in ["cannot", "not able", "don't", "can not"]):
         boundaries.append("capability-bound")
-    if any(kw in text for kw in ["applicable", "scope", "范围", "适用于"]):
+    if any(kw in text for kw in ["applicable", "scope"]):
         boundaries.append("scope-bound")
-    if any(kw in text for kw in ["legal", "advice", "compliance", "法律", "免责"]):
+    if any(kw in text for kw in ["legal", "advice", "compliance", "disclaimer"]):
         boundaries.append("legal-bound")
     return boundaries if boundaries else ["capability-bound"]
 
@@ -299,10 +334,10 @@ def extract_boundary_pattern(parsed: dict) -> list[str]:
 def detect_skill_mode(parsed: dict) -> str:
     """Detect whether a skill is persona or tool mode.
 
-    Persona skills are character-based role-playing (黄仁勋, 张一鸣).
-    They have unique sections like 角色扮演规则, 我看世界的方式, 我绝不会说.
-    Tool skills with output instructions may share some section names (我怎么说话)
-    but never have role-playing rules.
+    Persona skills are character-based role-playing skills, such as skills based
+    on Jensen Huang or Zhang Yiming. They have unique sections such as
+    Role-Playing Rules, How I See the World, and Things I Would Never Say.
+    Tool skills may share some section names, but never have role-playing rules.
     """
     headings = [h.lower() for h in parsed.get("section_headings", [])]
     all_text = " ".join(s.get("content", "") for s in parsed.get("sections", []))
@@ -310,12 +345,12 @@ def detect_skill_mode(parsed: dict) -> str:
     full_lower = full.lower()
 
     # Strong persona signals — these ONLY appear in character persona skills
-    persona_strong = ["角色扮演规则", "我看世界的方式", "我绝不会说"]
+    persona_strong = ["role-playing rules", "how i see the world", "things i would never say"]
     if any(s in full for s in persona_strong):
         return "persona"
 
     # Medium persona: need 2+ of these together
-    persona_medium = ["身份", "我怎么说话", "标志句式", "决策启发式", "运行时协议"]
+    persona_medium = ["identity", "how i speak", "signature phrase", "decision heuristics", "runtime protocol"]
     persona_medium_hits = sum(1 for s in persona_medium if s in full)
     if persona_medium_hits >= 3:
         return "persona"
@@ -342,11 +377,13 @@ def build_index():
         print("No fetched skills in manifest. Run build_corpus.py first.")
         return
 
-    print(f"Indexing {len(skills)} skills...")
+    print(f"Indexing {len(skills)} fetched skills...")
 
     # Global stats
     grammar_stats = {
-        "total_skills_indexed": len(skills),
+        "total_skills_fetched": len(skills),
+        "total_skills_indexed": 0,
+        "excluded_by_integrity_filter": 0,
         "skill_mode": Counter(),
         "trigger_patterns": Counter(),
         "sop_patterns": Counter(),
@@ -383,6 +420,11 @@ def build_index():
             continue
 
         parsed = parse_skill_md(content)
+
+        if not is_corpus_eligible(parsed, skill_meta):
+            grammar_stats["excluded_by_integrity_filter"] += 1
+            continue
+        grammar_stats["total_skills_indexed"] += 1
 
         # Update global stats
         trigger = extract_trigger_pattern(parsed)
@@ -588,7 +630,10 @@ def build_index():
     print(f"  Trigger patterns: {dict(grammar_stats['trigger_patterns'].most_common())}")
     print(f"  SOP patterns: {dict(grammar_stats['sop_patterns'].most_common())}")
     print(f"  Line count dist: {grammar_stats['line_count_distribution']}")
-    print(f"  Skills with description trigger: {skills_with_description_trigger}/{len(skills)}")
+    print(
+        "  Skills with description trigger: "
+        f"{skills_with_description_trigger}/{grammar_stats['total_skills_indexed']}"
+    )
     print(f"\nQuality-filtered (top 60%, score>={quality_threshold}):")
     print(f"  Trigger patterns: {dict(qual_stats['trigger_patterns'].most_common())}")
     print(f"  SOP patterns: {dict(qual_stats['sop_patterns'].most_common())}")

@@ -2,5 +2,5 @@
   "name": "LEAP",
   "version": "v1.0",
   "type": "engine",
-  "description": "LEAP 落地执行引擎 — A 分支蒸馏 + B 分支融合"
+  "description": "LEAP builds skills through distillation or fusion"
 }

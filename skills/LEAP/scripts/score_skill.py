@@ -10,10 +10,8 @@ Usage:
 The 13-point mechanical rubric is derived from statistical analysis of 477 skills
 on skills.sh. See references/skill-grammar.md for methodology.
 
-Note: This is the MECHANICAL score (max 13), distinct from the Stage 7
-compilation SELF-ASSESSMENT score (max 10). The mechanical score is used
-for runtime quality filtering (A-Stage 5 / B-Step 1). The self-assessment
-is used after compilation to validate the output.
+The mechanical score is used only for exemplar filtering in A-Stage 5 and
+skill retrieval in B-Step 1.
 """
 
 from __future__ import annotations
@@ -59,8 +57,8 @@ def score_skill(skill_path: Path) -> dict:
     desc_match = re.search(r"^description:\s*(.+?)(?=\n\S|\n$|\Z)", text, re.MULTILINE | re.DOTALL)
     desc_text = desc_match.group(1) if desc_match else ""
     trigger_keywords = [
-        "use when", "Use when", "触发", "when user", "when the user",
-        "trigger", "activates when", "适用场景", "applies when"
+        "use when", "when user", "when the user", "trigger",
+        "activates when", "applies when"
     ]
     has_trigger = any(kw.lower() in desc_text.lower() for kw in trigger_keywords)
     if has_trigger:
@@ -87,8 +85,8 @@ def score_skill(skill_path: Path) -> dict:
 
     # 6. has boundary declaration (2 pts, weighted)
     boundary_patterns = [
-        r"boundary", r"boundaries", r"边界", r"限制", r"不适用",
-        r"limitations?", r"constraints", r"out of scope", r"适用范围外",
+        r"boundary", r"boundaries", r"limitations?", r"constraints",
+        r"out of scope",
         r"boundary rules", r"boundary rule"
     ]
     has_boundary = any(re.search(p, text, re.IGNORECASE) for p in boundary_patterns)
@@ -101,7 +99,7 @@ def score_skill(skill_path: Path) -> dict:
     # 7. >=5 concrete steps (2 pts, weighted)
     step_patterns = [
         r"step\s*\d", r"Step\s*\d", r"phase\s*\d", r"Phase\s*\d",
-        r"^\d+\.\s", r"步骤\s*\d",
+        r"^\d+\.\s",
     ]
     step_count = 0
     for pat in step_patterns:
@@ -114,7 +112,7 @@ def score_skill(skill_path: Path) -> dict:
 
     # 8. has examples section (1 pt)
     has_examples = bool(re.search(
-        r"example|示例|demo|用法示例|conversation|scenario",
+        r"example|demo|conversation|scenario",
         text, re.IGNORECASE
     ))
     if has_examples:
@@ -132,7 +130,7 @@ def score_skill(skill_path: Path) -> dict:
 
     # 10. has references/related section (1 pt)
     has_refs = bool(re.search(
-        r"reference|参考|参见|see also|related|相关",
+        r"reference|see also|related",
         text, re.IGNORECASE
     ))
     if has_refs:
@@ -155,9 +153,12 @@ def score_skill(skill_path: Path) -> dict:
         grade = "draft"
 
     # Determine skill mode
-    persona_signals = ["角色扮演", "我怎么说话", "我绝不会说", "标志句式",
-                       "我看世界的方式", "决策启发式", "persona"]
-    skill_mode = "persona" if any(s in text for s in persona_signals) else "tool"
+    persona_signals = [
+        "role-playing rules", "how i speak", "things i would never say",
+        "signature phrase", "how i see the world", "decision heuristics", "persona"
+    ]
+    lower_text = text.lower()
+    skill_mode = "persona" if any(signal in lower_text for signal in persona_signals) else "tool"
 
     return {
         "path": str(skill_path),
