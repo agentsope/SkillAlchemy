@@ -2,8 +2,6 @@
 
 # SkillAlchemy
 
-### Open-World Agent Skill Creation
-
 Turn people, methods, and experience into installable, reusable agent skills.
 
 [English](README_EN.md) · [中文](README.md)
@@ -16,83 +14,65 @@ Turn people, methods, and experience into installable, reusable agent skills.
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
 </p>
 
-## Overview
-
-Creating a reliable skill requires more than summarizing source material. The
-creator must recover conditions omitted by the task brief, extract executable
-procedures from open-world sources, and decide how broadly each procedure applies.
-
-SkillAlchemy supports three workflows:
-
-1. **Distill a person** into a Persona Skill grounded in public evidence about decisions, failures, values, and communication patterns.
-2. **Distill a method** from a book, methodology, repository, or interview into an executable Skill with conditions, steps, branches, and failure handling.
-3. **Fuse existing Skills** by combining a workflow with complementary domain knowledge or working styles.
+SkillAlchemy is an open-world agent skill creation system. It discovers omitted requirements, extracts executable procedures from public sources, and produces skills that agents can install and use directly.
 
 <div align="center">
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
 </div>
 
-## Installation
+## Features
 
-Install the complete SkillAlchemy workflow:
+- **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
+- **Distill methods** — Turn books, methodologies, repositories, or interviews into executable Skills with conditions, steps, branches, and failure handling.
+- **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
+- **Stay evidence-grounded** — Separate reusable procedures, scoped cases, and unsupported content to reduce unjustified generalization.
 
-```bash
-npx skills add agentsope/SkillAlchemy
-```
+## Quick Start
 
-Or ask Claude Code or Codex directly:
+The easiest way to install SkillAlchemy is to ask Claude Code or Codex:
 
 ```text
 Install SkillAlchemy from https://github.com/agentsope/SkillAlchemy and show me how to use it.
 ```
 
-Install the core components separately:
+Or use the command line:
 
 ```bash
-npx skills add agentsope/SkillAlchemy/skills/Lens
-npx skills add agentsope/SkillAlchemy/skills/LEAP
+npx skills add agentsope/SkillAlchemy
 ```
 
-Install another bundled Skill:
+Then describe the Skill you want to create:
+
+```text
+Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public documentation and research papers as sources.
+```
+
+Generated packages are written to `output/` in the active project.
+
+### Install Individual Skills
 
 ```bash
+# Core components
+npx skills add agentsope/SkillAlchemy/skills/Lens
+npx skills add agentsope/SkillAlchemy/skills/LEAP
+
+# Another bundled Skill
 npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ```
 
-[Browse all bundled Skills](skills/)
+[Browse all installable Skills](skills/)
 
-## Quick Start
+## Results
 
-After installation, tell Claude Code or Codex what you want to distill or fuse.
-For example:
+We evaluate SkillAlchemy on 87 tasks from SkillsBench v1.1 across four agent–model configurations. It improves average task pass rate by **19.9 percentage points** over no-skill execution and by **8.6 points** over the strongest automated skill-creation baseline, with aggregate performance comparable to human-curated skills.
 
-```text
-Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public
-documentation and research papers as sources.
-```
+<div align="center">
+  <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
+</div>
 
-SkillAlchemy first uses **Lens** to discover implicit requirements. **LEAP** then
-collects evidence, organizes reusable procedures, and builds the Skill package.
-Generated packages are written to `output/` in the active project.
+---
 
-## Repository Structure
-
-```text
-.
-├── SKILL.md                 # Main SkillAlchemy entry point
-├── skills/
-│   ├── Lens/                # Discovers implicit requirements
-│   ├── LEAP/                # Distills, fuses, and builds Skills
-│   └── agentsop-*/          # Ready-to-install agent engineering Skills
-├── assets/                  # README figures
-├── package.json
-├── skill.json
-└── LICENSE
-```
-
-See the [technical documentation](技术文档.md) for the internal workflow and
-[CONTRIBUTING.md](CONTRIBUTING.md) before contributing.
-
-## License
-
-This project is released under the [MIT License](LICENSE).
+<p align="center">
+  <a href="技术文档.md"><strong>Documentation</strong></a> ·
+  <a href="LICENSE"><strong>MIT License</strong></a>
+</p>

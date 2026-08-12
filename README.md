@@ -2,8 +2,6 @@
 
 # SkillAlchemy
 
-### 一念落地，万象成形
-
 把人物、方法和经验转化为可安装、可复用的 Agent Skill。
 
 [English](README_EN.md) · [中文](README.md)
@@ -16,79 +14,65 @@
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
 </p>
 
-## 项目简介
-
-创建可靠的 Skill 不只是总结资料。系统需要发现任务描述中遗漏的条件，
-从公开来源中提取可执行步骤，并判断每条经验可以复用到多大的范围。
-
-SkillAlchemy 支持三类任务：
-
-1. **蒸馏人物**：从公开资料中提取决策方式、失败处理、价值取舍和表达特点，生成 Persona Skill。
-2. **蒸馏方法**：将书籍、方法论、开源仓库或访谈整理为包含条件、步骤、分支和失败处理的可执行 Skill。
-3. **融合 Skill**：组合已有 Skill 的工作流程与领域视角，形成新的复合能力。
+SkillAlchemy 是一个开放世界 Agent Skill 创建系统。它从简短需求和公开资料中发现遗漏条件、提取可执行步骤，并生成可直接安装的 Skill。
 
 <div align="center">
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
 </div>
 
-## 安装
+## 核心能力
 
-安装完整的 SkillAlchemy 工作流：
+- **蒸馏人物** — 从公开资料中提取决策方式、失败处理、价值取舍和表达特点，生成 Persona Skill。
+- **蒸馏方法** — 将书籍、方法论、开源仓库或访谈整理为包含条件、步骤、分支和失败处理的可执行 Skill。
+- **融合 Skill** — 组合已有 Skill 的工作流程、领域知识或工作风格，形成新的复合能力。
+- **证据驱动** — 区分可复用步骤、限定场景和证据不足的内容，减少无依据的泛化。
 
-```bash
-npx skills add agentsope/SkillAlchemy
-```
+## 快速开始
 
-也可以直接告诉 Claude Code 或 Codex：
+最简单的方式是直接告诉 Claude Code 或 Codex：
 
 ```text
 请从 https://github.com/agentsope/SkillAlchemy 安装 SkillAlchemy，并告诉我如何使用。
 ```
 
-也可以单独安装核心组件：
+也可以使用命令行：
 
 ```bash
-npx skills add agentsope/SkillAlchemy/skills/Lens
-npx skills add agentsope/SkillAlchemy/skills/LEAP
+npx skills add agentsope/SkillAlchemy
 ```
 
-安装仓库中其他 Skill：
-
-```bash
-npx skills add agentsope/SkillAlchemy/skills/<skill-name>
-```
-
-[浏览仓库中的全部 Skills](skills/)
-
-## 快速开始
-
-安装后，直接告诉 Claude Code 或 Codex 你想蒸馏或融合什么。例如：
+安装后，直接描述你想创建的 Skill：
 
 ```text
 使用 SkillAlchemy，从公开文档和论文中创建一个用于审查 RAG 系统的 Skill。
 ```
 
-SkillAlchemy 先用 **Lens** 补全任务中的隐含需求，再由 **LEAP** 收集证据、
-整理可复用步骤并生成 Skill 包。生成结果默认写入当前项目的 `output/`。
+生成结果默认写入当前项目的 `output/`。
 
-## 仓库结构
+### 单独安装 Skill
 
-```text
-.
-├── SKILL.md                 # SkillAlchemy 主入口
-├── skills/
-│   ├── Lens/                # 发现隐含需求
-│   ├── LEAP/                # 蒸馏、融合并生成 Skill
-│   └── agentsop-*/          # 可直接安装的 Agent 工程 Skill
-├── assets/                  # README 图片
-├── package.json
-├── skill.json
-└── LICENSE
+```bash
+# 核心组件
+npx skills add agentsope/SkillAlchemy/skills/Lens
+npx skills add agentsope/SkillAlchemy/skills/LEAP
+
+# 仓库中的其他 Skill
+npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ```
 
-更详细的内部流程见[技术文档](技术文档.md)。参与贡献前请阅读
-[CONTRIBUTING.md](CONTRIBUTING.md)。
+[浏览全部可安装 Skills](skills/)
 
-## 许可证
+## 实验结果
 
-本项目采用 [MIT License](LICENSE)。
+我们在 SkillsBench v1.1 的 87 个任务和四种 Agent–Model 配置上评估了 SkillAlchemy。与不使用 Skill 相比，平均任务通过率提高 **19.9 个百分点**；与最强的自动 Skill 创建基线相比，提高 **8.6 个百分点**，整体表现与人工编写的 Skill 相当。
+
+<div align="center">
+  <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
+</div>
+
+---
+
+<p align="center">
+  <a href="技术文档.md"><strong>技术文档</strong></a> ·
+  <a href="LICENSE"><strong>MIT License</strong></a>
+</p>
