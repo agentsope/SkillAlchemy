@@ -73,8 +73,8 @@ We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent
 
 Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points** and over **MUSE-Autoskill**, the strongest automated skill-creation baseline on average, by **8.6 points**. It also slightly surpasses human-curated skills on average.
 
-| Skill Setting | Claude Code + DeepSeek-V4-Pro | Claude Code + Opus 4.8 | Codex + DeepSeek-V4-Pro | Codex + GPT-5.5 | Average |
-|---|---:|---:|---:|---:|---:|
+| Skill Setting | Claude Code<br>DeepSeek-V4-Pro | Claude Code<br>Opus 4.8 | Codex<br>DeepSeek-V4-Pro | Codex<br>GPT-5.5 | Avg. |
+|:---|---:|---:|---:|---:|---:|
 | No Skill | 23.4 | 45.3 | 29.7 | 45.1 | 35.9 |
 | Anthropic Skill-Creator | 31.7 | 49.2 | 32.9 | 48.5 | 40.6 |
 | OpenAI Skill-Creator | 33.3 | 49.9 | 37.0 | 48.5 | 42.2 |
