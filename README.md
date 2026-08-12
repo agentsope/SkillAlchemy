@@ -2,9 +2,9 @@
 
 # SkillAlchemy
 
-把人物、方法和经验转化为可安装、可复用的 Agent Skill。
+Turn people, methods, and experience into installable, reusable agent skills.
 
-[English](README_EN.md) · [中文](README.md)
+[English](README.md) · [中文](README_CN.md)
 
 </div>
 
@@ -14,57 +14,57 @@
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
 </p>
 
-SkillAlchemy 是一个开放世界 Agent Skill 创建系统。它从简短需求和公开资料中发现遗漏条件、提取可执行步骤，并生成可直接安装的 Skill。
+SkillAlchemy is an open-world agent skill creation system. It discovers omitted requirements, extracts executable procedures from public sources, and produces skills that agents can install and use directly.
 
 <div align="center">
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
 </div>
 
-## 核心能力
+## Features
 
-- **蒸馏人物** — 从公开资料中提取决策方式、失败处理、价值取舍和表达特点，生成 Persona Skill。
-- **蒸馏方法** — 将书籍、方法论、开源仓库或访谈整理为包含条件、步骤、分支和失败处理的可执行 Skill。
-- **融合 Skill** — 组合已有 Skill 的工作流程、领域知识或工作风格，形成新的复合能力。
-- **证据驱动** — 区分可复用步骤、限定场景和证据不足的内容，减少无依据的泛化。
+- **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
+- **Distill methods** — Turn books, methodologies, repositories, or interviews into executable Skills with conditions, steps, branches, and failure handling.
+- **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
+- **Stay evidence-grounded** — Separate reusable procedures, scoped cases, and unsupported content to reduce unjustified generalization.
 
-## 快速开始
+## Quick Start
 
-最简单的方式是直接告诉 Claude Code 或 Codex：
+The easiest way to install SkillAlchemy is to ask Claude Code or Codex:
 
 ```text
-请从 https://github.com/agentsope/SkillAlchemy 安装 SkillAlchemy，并告诉我如何使用。
+Install SkillAlchemy from https://github.com/agentsope/SkillAlchemy and show me how to use it.
 ```
 
-也可以使用命令行：
+Or use the command line:
 
 ```bash
 npx skills add agentsope/SkillAlchemy
 ```
 
-安装后，直接描述你想创建的 Skill：
+Then describe the Skill you want to create:
 
 ```text
-使用 SkillAlchemy，从公开文档和论文中创建一个用于审查 RAG 系统的 Skill。
+Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public documentation and research papers as sources.
 ```
 
-生成结果默认写入当前项目的 `output/`。
+Generated packages are written to `output/` in the active project.
 
-### 单独安装 Skill
+### Install Individual Skills
 
 ```bash
-# 核心组件
+# Core components
 npx skills add agentsope/SkillAlchemy/skills/Lens
 npx skills add agentsope/SkillAlchemy/skills/LEAP
 
-# 仓库中的其他 Skill
+# Another bundled Skill
 npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ```
 
-[浏览全部可安装 Skills](skills/)
+[Browse all installable Skills](skills/)
 
-## 实验结果
+## Results
 
-我们在 SkillsBench v1.1 的 87 个任务和四种 Agent–Model 配置上评估了 SkillAlchemy。与不使用 Skill 相比，平均任务通过率提高 **19.9 个百分点**；与最强的自动 Skill 创建基线相比，提高 **8.6 个百分点**，整体表现与人工编写的 Skill 相当。
+We evaluate SkillAlchemy on 87 tasks from SkillsBench v1.1 across four agent–model configurations. It improves average task pass rate by **19.9 percentage points** over no-skill execution and by **8.6 points** over the strongest automated skill-creation baseline, with aggregate performance comparable to human-curated skills.
 
 <div align="center">
   <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
@@ -73,6 +73,6 @@ npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 ---
 
 <p align="center">
-  <a href="TECHNICAL.md"><strong>技术文档</strong></a> ·
+  <a href="TECHNICAL.md"><strong>Documentation</strong></a> ·
   <a href="LICENSE"><strong>MIT License</strong></a>
 </p>
