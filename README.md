@@ -20,53 +20,6 @@ SkillAlchemy is an open-world agent skill creation system. It discovers omitted 
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
 </div>
 
-## Features
-
-- **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
-- **Distill methods** — Turn books, methodologies, repositories, or interviews into executable Skills with conditions, steps, branches, and failure handling.
-- **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
-- **Stay evidence-grounded** — Separate reusable procedures, scoped cases, and unsupported content to reduce unjustified generalization.
-
-## Quick Start
-
-The easiest way to install SkillAlchemy is to ask Claude Code or Codex:
-
-```text
-Install SkillAlchemy from https://github.com/agentsope/SkillAlchemy and show me how to use it.
-```
-
-Or use the command line:
-
-```bash
-npx skills add agentsope/SkillAlchemy
-```
-
-Then describe the Skill you want to create:
-
-```text
-Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public documentation and research papers as sources.
-```
-
-Generated packages are written to `output/` in the active project.
-
-### Install Individual Skills
-
-```bash
-# Core components
-npx skills add agentsope/SkillAlchemy/skills/Lens
-npx skills add agentsope/SkillAlchemy/skills/LEAP
-
-# Another bundled Skill
-npx skills add agentsope/SkillAlchemy/skills/<skill-name>
-```
-
-[Browse all installable Skills](skills/)
-
-## Results
-
-We evaluate SkillAlchemy on 87 tasks from SkillsBench v1.1 across four agent–model configurations. It improves average task pass rate by **19.9 percentage points** over no-skill execution and by **8.6 points** over the strongest automated skill-creation baseline, with aggregate performance comparable to human-curated skills.
-
-
 ## Results
 
 We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent–model configurations. SkillAlchemy achieves the highest overall task pass rate in **3 of 4 configurations**.
@@ -143,6 +96,54 @@ Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass r
     </tr>
   </tbody>
 </table>
+
+
+## Features
+
+- **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
+- **Distill methods** — Turn books, methodologies, repositories, or interviews into executable Skills with conditions, steps, branches, and failure handling.
+- **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
+- **Stay evidence-grounded** — Separate reusable procedures, scoped cases, and unsupported content to reduce unjustified generalization.
+
+## Quick Start
+
+The easiest way to install SkillAlchemy is to ask Claude Code or Codex:
+
+```text
+Install SkillAlchemy from https://github.com/agentsope/SkillAlchemy and show me how to use it.
+```
+
+Or use the command line:
+
+```bash
+npx skills add agentsope/SkillAlchemy
+```
+
+Then describe the Skill you want to create:
+
+```text
+Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public documentation and research papers as sources.
+```
+
+Generated packages are written to `output/` in the active project.
+
+### Install Individual Skills
+
+```bash
+# Core components
+npx skills add agentsope/SkillAlchemy/skills/Lens
+npx skills add agentsope/SkillAlchemy/skills/LEAP
+
+# Another bundled Skill
+npx skills add agentsope/SkillAlchemy/skills/<skill-name>
+```
+
+[Browse all installable Skills](skills/)
+
+
+
+
+
 
 
 <!-- <div align="center">
