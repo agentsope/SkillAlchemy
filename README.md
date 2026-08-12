@@ -24,7 +24,7 @@ SkillAlchemy is an open-world agent skill creation system. It discovers omitted 
 
 We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent–model configurations. SkillAlchemy achieves the highest overall task pass rate in **3 of 4 configurations**.
 
-Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points** and over **MUSE-Autoskill**, the strongest automated skill-creation baseline on average, by **8.6 points**. It also slightly surpasses human-curated skills on average.
+Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points**. It also slightly surpasses human-curated skills on average.
 
 <table>
   <thead>
