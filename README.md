@@ -25,7 +25,7 @@
 
 SkillAlchemy is an **open-world agent skill creation system** that turns underspecified skill briefs and open-world sources into installable, reusable agent skills.
 
-It discovers omitted requirements, identifies executable procedures from heterogeneous public sources, determines how broadly each procedure is justified by evidence, and compiles the admitted knowledge into agent-usable Skill packages.
+It discovers omitted requirements, identifies executable procedures from heterogeneous public sources, determines how broadly each procedure is justified by evidence, and compiles the admitted knowledge into agent skill packages.
 
 <div align="center">
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
