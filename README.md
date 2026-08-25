@@ -2,29 +2,63 @@
 
 # SkillAlchemy
 
-Turn people, methods, and experience into installable, reusable agent skills.
+**Turn people, methods, and experience into installable, reusable agent skills.**
 
 [English](README.md) · [中文](README_CN.md)
 
 </div>
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2608.23417"><img src="https://img.shields.io/badge/arXiv-2608.23417-b31b1b.svg" alt="arXiv"></a>
   <a href="https://github.com/agentsope/SkillAlchemy/stargazers"><img src="https://img.shields.io/github/stars/agentsope/SkillAlchemy?logo=github&color=ffca28" alt="Stars"></a>
   <img src="https://img.shields.io/github/license/agentsope/SkillAlchemy?color=blue" alt="License">
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
 </p>
 
-SkillAlchemy is an open-world agent skill creation system. It discovers omitted requirements, extracts executable procedures from public sources, and produces skills that agents can install and use directly.
+<p align="center">
+  📄 <a href="https://arxiv.org/abs/2608.23417"><strong>Paper</strong></a>
+  &nbsp;·&nbsp;
+  📑 <a href="https://arxiv.org/pdf/2608.23417"><strong>PDF</strong></a>
+  &nbsp;·&nbsp;
+  📚 <a href="TECHNICAL.md"><strong>Documentation</strong></a>
+</p>
+
+SkillAlchemy is an **open-world agent skill creation system** that turns underspecified skill briefs and open-world sources into installable, reusable agent skills.
+
+It discovers omitted requirements, identifies executable procedures from heterogeneous public sources, determines how broadly each procedure is justified by evidence, and compiles the admitted knowledge into agent-usable Skill packages.
 
 <div align="center">
   <img src="assets/framework.png" alt="SkillAlchemy framework" width="100%">
 </div>
 
+## 🔥 News
+
+* **2026-08-24** — Our paper, **[SkillAlchemy: Open-World Agent Skill Creation](https://arxiv.org/abs/2608.23417)**, is now available on arXiv.
+
+## Overview
+
+Creating reliable agent skills is difficult when the target capability is unfamiliar: task descriptions omit important requirements, expert-written procedures may not exist, and execution traces may be unavailable.
+
+SkillAlchemy approaches skill creation as a **source-grounded procedure-admission problem**.
+
+Given an underspecified skill brief and access to open-world sources, it:
+
+1. **Discovers implicit requirements** that are missing from the original brief.
+2. **Acquires grounded procedures** from documentation, repositories, papers, issue reports, and other public sources.
+3. **Determines procedure scope** — deciding whether evidence supports a reusable instruction, a scoped example, or exclusion.
+4. **Compiles an installable Skill package** that agents can load and use directly.
+
 ## Results
 
-We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent–model configurations. SkillAlchemy achieves the highest overall task pass rate in **3 of 4 configurations**.
+We evaluate SkillAlchemy on **87 tasks from SkillsBench v1.1** across four agent–model configurations.
 
-Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate, improving over no-skill execution by **19.9 percentage points**. It also slightly surpasses human-curated skills on average.
+SkillAlchemy achieves the highest overall task pass rate in **3 of 4 configurations**.
+
+Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass rate:
+
+* **+19.9 percentage points** over no-skill execution.
+* **+8.6 percentage points** over the strongest automated skill-creation baseline.
+* Performance **comparable to human-curated skills**, slightly exceeding them on average in our evaluation.
 
 <table>
   <thead>
@@ -97,13 +131,14 @@ Averaged across all configurations, SkillAlchemy reaches a **55.8%** task pass r
   </tbody>
 </table>
 
-
 ## Features
 
-- **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
-- **Distill methods** — Turn books, methodologies, repositories, or interviews into executable Skills with conditions, steps, branches, and failure handling.
-- **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
-- **Stay evidence-grounded** — Separate reusable procedures, scoped cases, and unsupported content to reduce unjustified generalization.
+* **Discover implicit requirements** — Recover behavior-relevant requirements, constraints, and operational dimensions omitted by an underspecified Skill brief.
+* **Distill people** — Build Persona Skills from public evidence about decisions, failures, values, and communication patterns.
+* **Distill methods** — Turn books, methodologies, repositories, documentation, papers, or interviews into executable Skills with conditions, steps, branches, and failure handling.
+* **Admit evidence-supported procedures** — Separate reusable instructions from context-specific examples and unsupported content instead of treating every retrieved finding as universally valid.
+* **Fuse Skills** — Combine existing workflows, domain knowledge, or working styles into a new capability.
+* **Compile installable Skills** — Package admitted procedures, examples, references, and supporting resources into Skills that agents can load and use directly.
 
 ## Quick Start
 
@@ -122,7 +157,8 @@ npx skills add agentsope/SkillAlchemy
 Then describe the Skill you want to create:
 
 ```text
-Use SkillAlchemy to create a Skill for reviewing RAG systems. Use public documentation and research papers as sources.
+Use SkillAlchemy to create a Skill for reviewing RAG systems.
+Use public documentation and research papers as sources.
 ```
 
 Generated packages are written to `output/` in the active project.
@@ -140,19 +176,36 @@ npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 
 [Browse all installable Skills](skills/)
 
+## Paper
 
+For the full formulation, framework design, and experimental evaluation, see:
 
+> **SkillAlchemy: Open-World Agent Skill Creation**
+> Hengjun Wang, Shuyue Wei, Boyi Liu, Jun Yang, Yongxin Tong. 
+> arXiv:2608.23417, 2026
+> **[arXiv](https://arxiv.org/abs/2608.23417)** · **[PDF](https://arxiv.org/pdf/2608.23417)**
 
+## Citation
 
+If you find SkillAlchemy useful in your research or work, please cite our paper:
 
+```bibtex
+@article{wang2026skillalchemy,
+  title   = {SkillAlchemy: Open-World Agent Skill Creation},
+  author  = {Wang, Hengjun and Wei, Shuyue and Liu, Boyi and Yang, Jun and Tong, Yongxin},
+  journal = {arXiv preprint arXiv:2608.23417},
+  year    = {2026}
+}
+```
 
-<!-- <div align="center">
-  <img src="assets/main-results.png" alt="SkillAlchemy task-level evaluation results" width="75%">
-</div> -->
+## License
+
+SkillAlchemy is released under the [MIT License](LICENSE).
 
 ---
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2608.23417"><strong>Paper</strong></a> ·
   <a href="TECHNICAL.md"><strong>Documentation</strong></a> ·
   <a href="LICENSE"><strong>MIT License</strong></a>
 </p>
