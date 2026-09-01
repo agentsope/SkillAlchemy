@@ -11,16 +11,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2608.23417"><img src="https://img.shields.io/badge/arXiv-2608.23417-b31b1b.svg" alt="arXiv"></a>
   <a href="https://github.com/agentsope/SkillAlchemy/stargazers"><img src="https://img.shields.io/github/stars/agentsope/SkillAlchemy?logo=github&color=ffca28" alt="Stars"></a>
-  <img src="https://img.shields.io/github/license/agentsope/SkillAlchemy?color=blue" alt="License">
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
-</p>
-
-<p align="center">
-  📄 <a href="https://arxiv.org/abs/2608.23417"><strong>Paper</strong></a>
-  &nbsp;·&nbsp;
-  📑 <a href="https://arxiv.org/pdf/2608.23417"><strong>PDF</strong></a>
-  &nbsp;·&nbsp;
-  📚 <a href="TECHNICAL.md"><strong>Documentation</strong></a>
 </p>
 
 SkillAlchemy is an **open-world agent skill creation system** that turns underspecified skill briefs and open-world sources into installable, reusable agent skills.
@@ -176,7 +167,7 @@ npx skills add agentsope/SkillAlchemy/skills/<skill-name>
 
 [Browse all installable Skills](skills/)
 
-## Paper
+## Paper & Citation
 
 For the full formulation, framework design, and experimental evaluation, see:
 
@@ -184,8 +175,6 @@ For the full formulation, framework design, and experimental evaluation, see:
 > Hengjun Wang, Shuyue Wei, Boyi Liu, Jun Yang, Yongxin Tong. 
 > arXiv:2608.23417, 2026
 > **[arXiv](https://arxiv.org/abs/2608.23417)** · **[PDF](https://arxiv.org/pdf/2608.23417)**
-
-## Citation
 
 If you find SkillAlchemy useful in your research or work, please cite our paper:
 
@@ -205,7 +194,5 @@ SkillAlchemy is released under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2608.23417"><strong>Paper</strong></a> ·
-  <a href="TECHNICAL.md"><strong>Documentation</strong></a> ·
-  <a href="LICENSE"><strong>MIT License</strong></a>
+  <a href="TECHNICAL.md"><strong>Technical Documentation</strong></a>
 </p>

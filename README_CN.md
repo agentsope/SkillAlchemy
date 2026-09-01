@@ -11,16 +11,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2608.23417"><img src="https://img.shields.io/badge/arXiv-2608.23417-b31b1b.svg" alt="arXiv"></a>
   <a href="https://github.com/agentsope/SkillAlchemy/stargazers"><img src="https://img.shields.io/github/stars/agentsope/SkillAlchemy?logo=github&color=ffca28" alt="Stars"></a>
-  <img src="https://img.shields.io/github/license/agentsope/SkillAlchemy?color=blue" alt="License">
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex-6E56CF" alt="Supported agents">
-</p>
-
-<p align="center">
-  📄 <a href="https://arxiv.org/abs/2608.23417"><strong>论文</strong></a>
-  &nbsp;·&nbsp;
-  📑 <a href="https://arxiv.org/pdf/2608.23417"><strong>PDF</strong></a>
-  &nbsp;·&nbsp;
-  📚 <a href="TECHNICAL.md"><strong>技术文档</strong></a>
 </p>
 
 SkillAlchemy 是一个**开放世界 Agent Skill 创建系统**。它从简短、欠完整的 Skill 需求和开放世界公开资料中发现遗漏条件，提取有证据支持的可执行步骤，并将其编译为 Agent 可以直接安装和使用的 Skill。
@@ -173,7 +164,7 @@ SkillAlchemy 在 **4 种配置中的 3 种取得了最高任务通过率**。
   </tbody>
 </table>
 
-## 论文
+## 论文与引用
 
 完整的问题定义、系统设计和实验结果请参见：
 
@@ -181,8 +172,6 @@ SkillAlchemy 在 **4 种配置中的 3 种取得了最高任务通过率**。
 > Hengjun Wang, Shuyue Wei, Boyi Liu, Jun Yang, Yongxin Tong
 > arXiv:2608.23417, 2026
 > **[arXiv](https://arxiv.org/abs/2608.23417)** · **[PDF](https://arxiv.org/pdf/2608.23417)**
-
-## 引用
 
 如果 SkillAlchemy 对你的研究或工作有帮助，欢迎引用我们的论文：
 
@@ -202,7 +191,5 @@ SkillAlchemy 基于 [MIT License](LICENSE) 开源。
 ---
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2608.23417"><strong>论文</strong></a> ·
-  <a href="TECHNICAL.md"><strong>技术文档</strong></a> ·
-  <a href="LICENSE"><strong>MIT License</strong></a>
+  <a href="TECHNICAL.md"><strong>技术文档</strong></a>
 </p>
