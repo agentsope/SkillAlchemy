@@ -4,7 +4,7 @@
 
 **把人物、方法和经验转化为可安装、可复用的 Agent Skill。**
 
-[English](README.md) · [中文](README_CN.md)
+[English](README.md) · [中文](README_CN.md) · [日本語](README_JA.md)
 
 </div>
 

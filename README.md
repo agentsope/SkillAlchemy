@@ -4,7 +4,7 @@
 
 **Turn people, methods, and experience into installable, reusable agent skills.**
 
-[English](README.md) · [中文](README_CN.md)
+[English](README.md) · [中文](README_CN.md) · [日本語](README_JA.md)
 
 </div>
 
