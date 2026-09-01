@@ -105,12 +105,12 @@ SkillAlchemy 在 **4 种配置中的 3 种取得了最高任务通过率**。
 <table>
   <thead>
     <tr>
-      <th align="left">Skill 设置</th>
+      <th align="left">Skill Setting</th>
       <th align="center">Claude Code<br>DeepSeek-V4-Pro</th>
       <th align="center">Claude Code<br>Opus 4.8</th>
       <th align="center">Codex<br>DeepSeek-V4-Pro</th>
       <th align="center">Codex<br>GPT-5.5</th>
-      <th align="center">平均</th>
+      <th align="center">Avg.</th>
     </tr>
   </thead>
   <tbody>
