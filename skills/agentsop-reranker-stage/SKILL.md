@@ -2,31 +2,12 @@
 name: agentsop-reranker-stage
 version: 0.1.0
 description: >-
-  Enhancement-overlay SOP for the reranker stage of a RAG pipeline — the "retrieve wide,
-  rerank narrow" discipline. Activate when a calling agent owns a retrieval pipeline whose
-  answers have plateaued: top-k contains the right document but it is buried below noise, or
-  the context window is under pressure from too many marginal chunks. Encodes the one non-
-  negotiable insight — a cheap bi-encoder retrieves *wide* for recall, then a more expensive
-  cross-encoder (which reads query + document *together*) reranks *narrow* for precision;
-  keep top-N=20-50, rerank to top-k=3-5. Covers when to add a reranker (and when not to),
-  N-vs-k tuning, model choice (Cohere/Voyage API vs bge-reranker local vs
-  SentenceTransformer cross-encoder), latency/cost budgeting, and the cross-framework
-  mapping (LlamaIndex node postprocessors, LangChain ContextualCompressionRetriever,
-  Cohere/Voyage rerank APIs, local cross-encoders). This is an ENHANCE overlay over the per-
-  framework skills — cross-link `[[llamaindex]]` and `[[agentsop-hybrid-retrieval]]` for the
-  deep API. Search keywords: cross-encoder, Cohere rerank, bge reranker, rerank RAG,
-  ColBERT, retrieval reranking, improve RAG precision, retrieve wide rerank narrow.trigger_keywords:
-  - "reranker"
-  - "rerank"
-  - "cross-encoder"
-  - "CohereRerank"
-  - "bge-reranker"
-  - "SentenceTransformerRerank"
-  - "node postprocessor"
-  - "ContextualCompressionRetriever"
-  - "voyage rerank"
-  - "top_n after retrieval"
-  - "retrieve wide rerank narrow"
+  Adds and tunes a reranker stage for RAG using the retrieve-wide,
+  rerank-narrow pattern. Use when relevant documents appear in the initial
+  top-N but are buried by noise, top-1 precision or MRR is low despite adequate
+  recall, or too many marginal chunks consume context. Covers cross-encoder,
+  API, and local rerankers; N-to-k selection; and latency/cost tradeoffs. Do not
+  use when retrieval recall itself is failing.
 when_to_use:
   - "a RAG pipeline's answer quality has plateaued and the relevant doc is present in top-k but not ranked first"
   - "the LLM context window is pressured by too many marginal chunks and you want fewer, higher-precision chunks"

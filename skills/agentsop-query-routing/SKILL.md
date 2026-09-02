@@ -2,28 +2,12 @@
 name: agentsop-query-routing
 version: 0.1.0
 description: >-
-  Enhancement-overlay SOP for query-type routing — sending a query to the right index / tool
-  / engine *before* retrieving, not after. Activate when a calling agent owns a retrieval or
-  answering surface that fronts more than one handler (a summary index, a vector index, a
-  text-to-SQL engine, a tool) and the inbound queries differ in kind: "summarize this doc"
-  vs "find the clause about X" vs "how many orders shipped in Q3". Encodes the one non-
-  negotiable insight — **one retriever cannot serve all query types; route first, retrieve
-  second** — plus the three router families (LLM/selector, embedding/semantic,
-  keyword/rule), confidence-threshold + fallback discipline, and the cross-framework mapping
-  (LlamaIndex `RouterQueryEngine` / `SelectorPromptTemplate`, Dify Question Classifier node,
-  LangGraph conditional edges). This is an ENHANCE overlay over the per-framework skills —
-  cross-link `[[llamaindex]]`, `[[agentsop-dify]]`, `[[agentsop-langgraph]]` for the deep
-  API. Search keywords: route query, semantic router, query classification,
-  RouterQueryEngine, multi-index routing, pick the right tool for a query.trigger_keywords:
-  - "query routing"
-  - "route to index"
-  - "RouterQueryEngine"
-  - "question classifier"
-  - "conditional edge router"
-  - "text-to-SQL or RAG"
-  - "summary vs lookup query"
-  - "selector"
-  - "intent routing"
+  Routes heterogeneous queries to the appropriate index, tool, or answering
+  engine before retrieval. Use when one endpoint serves multiple handlers,
+  such as summary, vector retrieval, text-to-SQL, or tools, and query types
+  require different paths. Covers LLM, semantic, and rule-based routers,
+  confidence thresholds, fallbacks, and framework mappings. Do not use when
+  one handler serves all queries or branching is fixed.
 when_to_use:
   - "a single answering endpoint fronts >=2 retrieval/answer handlers (summary index, vector index, SQL engine, tool) and queries differ in kind"
   - "users send a mix of lookup ('what is X'), summarize ('digest doc Y'), and compute ('how many Z') queries to one entry point"

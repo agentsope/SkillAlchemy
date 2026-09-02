@@ -2,19 +2,12 @@
 name: agentsop-multiscale-chunking
 version: 0.1.0
 description: >-
-  Enhancement-overlay (C5) for RAG over long documents — the chunk-paradox resolution.
-  Activate when a single fixed chunk size cannot satisfy both retrieval precision (small
-  chunks) and generation context (large chunks): small chunks lose surrounding context,
-  large chunks dilute embedding relevance into "topic averages". Encodes the core flip —
-  decouple the embed-unit from the return-unit: embed small for retrieval precision, return
-  large for synthesis context — and the SOP to pick a base chunk size, choose a horizontal
-  (sentence-window) vs vertical (auto-merging / parent-child) expansion strategy, and
-  measure the lift. Cross-links [[llamaindex]] for the full RAG SOP; this overlay supplies
-  the missing "chunk-paradox-resolution" recipe that the framework docs
-  (HierarchicalNodeParser, SentenceWindow) only describe in fragments. Medium-frequency for
-  any RAG over long prose, manuals, filings, or codebases. Search keywords: chunk size,
-  chunking strategy, parent document retriever, sentence window, small-to-big retrieval,
-  hierarchical chunking, optimal chunk size.
+  Designs multiscale chunking for RAG by embedding small units for retrieval
+  precision and returning larger context for synthesis. Use when fixed-size
+  chunks either lose surrounding context or dilute relevance in long documents,
+  manuals, filings, or codebases. Covers sentence-window and parent-child or
+  auto-merging strategies, base chunk sizing, and evaluation. Do not use when a
+  single chunk scale already meets retrieval and generation needs.
 ---
 
 # Multi-scale Chunking · C5 Enhancement Overlay
