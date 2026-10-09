@@ -1,0 +1,146 @@
+{
+  "schema_version": "1.0",
+  "origin": "Authored C05/C07 routing tests using admitted pinned profiles",
+  "execution_status": "not_executed",
+  "cases": [
+    {
+      "test_id": "R01",
+      "input": "Export the supplied original HTML plan for noncommercial evaluation.",
+      "environment": {
+        "hyperframes": "0.8.142",
+        "node_major": 22,
+        "browser": true,
+        "ffmpeg": true,
+        "exporter_available": true,
+        "eligibility": "eligible"
+      },
+      "expected": {
+        "profile": "hyperframes",
+        "version": "0.8.142",
+        "decision": "selected",
+        "time_unit": "seconds"
+      }
+    },
+    {
+      "test_id": "R02",
+      "input": "Render the supplied React plan in an established eligible server environment.",
+      "environment": {
+        "remotion": "4.0.534",
+        "node": true,
+        "browser": true,
+        "encoder": true,
+        "eligibility": "eligible",
+        "eligibility_basis": "fixture: qualifying noncommercial evaluation"
+      },
+      "expected": {
+        "profile": "remotion_server",
+        "version": "4.0.534",
+        "decision": "selected",
+        "time_unit": "frames"
+      }
+    },
+    {
+      "test_id": "R03",
+      "input": "Only a browser is available; export the supported composition.",
+      "environment": {
+        "remotion": "4.0.534",
+        "react_major": 18,
+        "browser": "Chrome 154",
+        "webcodecs": true,
+        "codec_supported": true,
+        "supported_subset": true,
+        "eligibility": "eligible"
+      },
+      "expected": {
+        "profile": "remotion_browser",
+        "version": "4.0.534",
+        "decision": "selected",
+        "excluded": [
+          "server CLI",
+          "OffthreadVideo",
+          "Html5Video",
+          "Html5Audio",
+          "optional HTML-in-canvas support assumption"
+        ]
+      }
+    },
+    {
+      "test_id": "R04",
+      "input": "Render with the released Motion Canvas editor.",
+      "environment": {
+        "motion_canvas": "3.17.2",
+        "local_vite_bridge": true,
+        "ffmpeg_plugin_registered": true,
+        "video_exporter_selected": true,
+        "eligibility": "eligible"
+      },
+      "expected": {
+        "profile": "motion_canvas",
+        "version": "3.17.2",
+        "decision": "selected",
+        "no_headless_cli": true
+      }
+    },
+    {
+      "test_id": "R05",
+      "input": "Render a company production video with Remotion; company subject/use has not been established.",
+      "environment": {
+        "remotion": "4.0.534",
+        "exporter_available": true,
+        "eligibility": "unknown"
+      },
+      "expected": {
+        "profile": "remotion_server",
+        "decision": "conditional",
+        "eligibility": "unknown",
+        "encoded_success": false
+      }
+    },
+    {
+      "test_id": "R06",
+      "input": "Export a new Canvas animation from browser preview alone.",
+      "environment": {
+        "browser_preview": true,
+        "exporter_available": false
+      },
+      "expected": {
+        "profile": "none",
+        "decision": "unavailable",
+        "gap": "No admitted generic Canvas/WebGL encoding fallback; P27 source reel only",
+        "encoded_success": false
+      }
+    },
+    {
+      "test_id": "R07",
+      "input": "No eligible runnable exporter is available; preserve the plan.",
+      "environment": {
+        "exporter_available": false,
+        "eligibility": "unknown"
+      },
+      "expected": {
+        "profile": "none",
+        "decision": "unavailable",
+        "encoded_success": false
+      }
+    },
+    {
+      "test_id": "R08",
+      "input": "Compile one director plan into separate HyperFrames and Remotion prompts.",
+      "environment": {
+        "exporter_available": false
+      },
+      "expected": {
+        "profiles": [
+          "hyperframes",
+          "remotion_server"
+        ],
+        "separate_prompts": true,
+        "units": [
+          "seconds",
+          "frames"
+        ],
+        "no_cross_namespace": true
+      }
+    }
+  ]
+}

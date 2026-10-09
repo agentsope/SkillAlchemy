@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "origin": "Authored C01-C08 evaluation conventions; not empirical creator evidence",
+  "execution_status": "not_executed",
+  "cases": [
+    {
+      "test_id": "P01",
+      "input": "做一个 15 秒的 AI 产品发布短片，科技感、节奏快、竖屏。",
+      "required": {
+        "duration_seconds": 15,
+        "orientation": "portrait",
+        "intent_tokens": [
+          "科技",
+          "快"
+        ],
+        "unknowns": [
+          "product_identity",
+          "features",
+          "claims"
+        ]
+      },
+      "assertions": [
+        "Explicit constraints preserved; defaults labeled",
+        "Unknown product claims remain unknown or labeled synthetic placeholders",
+        "Detailed neutral plan, shot/style/timeline/assets, conditional isolated prompt",
+        "No encoded success without actual artifact"
+      ]
+    },
+    {
+      "test_id": "P02",
+      "input": "用30秒横屏解释收入从40增长到55，简洁数据动画。",
+      "required": {
+        "duration_seconds": 30,
+        "orientation": "landscape",
+        "facts": [
+          {
+            "key": "before",
+            "value": 40
+          },
+          {
+            "key": "after",
+            "value": 55
+          }
+        ],
+        "unknowns": [
+          "units",
+          "periods",
+          "source",
+          "cause"
+        ]
+      },
+      "assertions": [
+        "User revenue values40/55 preserved; no invented years or periods",
+        "Derived+15/+37.5% explicitly labeled calculation",
+        "Units/periods/source/cause unknown",
+        "Isolated selected adapter units; independent evidence states"
+      ]
+    },
+    {
+      "test_id": "P03",
+      "input": "把公开 SkillAlchemy 项目文档做成 60 秒中文配音知识讲解视频，含字幕；本次测试语音仍待生成。",
+      "fixture": {
+        "source_name": "SkillAlchemy public documentation",
+        "revision": "6ea799f6deb10ee48d66a644e595b1ffb84ef9a6",
+        "voice_status": "pending",
+        "scope": "Controlled fixture says voice pending; it does not assert no TTS tool exists anywhere",
+        "facts_policy": "Use supplied/read pinned documentation with provenance. If content has not been supplied/read, mark project facts unknown; never use the FieldGuide synthetic example as real project evidence."
+      },
+      "required": {
+        "duration_seconds": 60,
+        "audio_intent": "narration",
+        "language": "zh",
+        "captions": true,
+        "timeline_provisional": true,
+        "unknowns": [
+          "voice",
+          "audio_rights",
+          "alignment"
+        ]
+      },
+      "assertions": [
+        "Pinned docs provenance retained",
+        "Pending voice not completed narration",
+        "Subtitle alignment provisional",
+        "No listening pass/not_applicable due to missing narration"
+      ]
+    }
+  ]
+}
