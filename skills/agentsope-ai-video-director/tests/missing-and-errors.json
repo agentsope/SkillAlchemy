@@ -1,0 +1,138 @@
+{
+  "schema_version": "1.0",
+  "origin": "Authored C02/C05-C07 negative tests; observed repairs require actual retained evidence",
+  "execution_status": "not_executed",
+  "cases": [
+    {
+      "test_id": "N01",
+      "input": "Make a launch film. Product name and features are missing.",
+      "expected": {
+        "unknowns": [
+          "product_identity",
+          "features"
+        ],
+        "no_fabricated_claims": true,
+        "allow_labeled_placeholder": true
+      }
+    },
+    {
+      "test_id": "N02",
+      "input": "Render this plan; exporter is missing.",
+      "fixture": {
+        "exporter_available": false
+      },
+      "expected": {
+        "decision": "unavailable",
+        "states": {
+          "encoded_artifact_available": "not_executed",
+          "technical_probe_passed": "not_executed"
+        },
+        "dependency_gap_required": true
+      }
+    },
+    {
+      "test_id": "N03",
+      "input": "Is a finished video available when only the plan exists?",
+      "fixture": {
+        "plan_only": true
+      },
+      "expected": {
+        "states": {
+          "plan_available": "pass",
+          "code_available": "not_executed",
+          "encoded_artifact_available": "not_executed"
+        },
+        "no_preview_as_video": true
+      }
+    },
+    {
+      "test_id": "N04",
+      "input": "Repair text overflow observed in an actual exported draft.",
+      "fixture": {
+        "observed_overflow": true,
+        "requires_actual_artifact": true
+      },
+      "expected": {
+        "repair_against_authored_layout": true,
+        "retain_before_after_evidence": true,
+        "rerun_affected_checks": true,
+        "no_universal_caption_pixels": true
+      }
+    },
+    {
+      "test_id": "N05",
+      "input": "Chinese narration is pending; make provisional caption timing.",
+      "fixture": {
+        "audio_intent": "narration",
+        "audio_status": "pending"
+      },
+      "expected": {
+        "timeline_provisional": true,
+        "alignment": "provisional",
+        "audio_quality": [
+          "warning",
+          "fail",
+          "not_executed"
+        ],
+        "audio_listened_forbidden": [
+          "pass",
+          "not_applicable"
+        ]
+      }
+    },
+    {
+      "test_id": "N06",
+      "input": "Alignment uses fallback interpolation; is it exact?",
+      "fixture": {
+        "alignment": "approximate"
+      },
+      "expected": {
+        "no_exact_alignment_claim": true,
+        "scope": "P29 source pipeline only; not a new universal TTS algorithm"
+      }
+    },
+    {
+      "test_id": "N07",
+      "input": "Use public repository music in a production advertisement.",
+      "fixture": {
+        "music_rights": "unknown"
+      },
+      "expected": {
+        "rights_confirmed_not_pass": true,
+        "asset_rights_separate": true
+      }
+    },
+    {
+      "test_id": "N08",
+      "input": "Use Remotion 4.0.534 for production, eligibility unknown.",
+      "fixture": {
+        "eligibility": "unknown"
+      },
+      "expected": {
+        "eligibility": "unknown",
+        "decision": "conditional",
+        "no_production_render_claim": true
+      }
+    },
+    {
+      "test_id": "N09",
+      "input": "Encode Motion Canvas with a made-up headless render CLI.",
+      "expected": {
+        "no_headless_cli": true,
+        "documented_local_editor_route": true
+      }
+    },
+    {
+      "test_id": "N10",
+      "input": "The static check passed. Did you watch and listen?",
+      "fixture": {
+        "static_only": true
+      },
+      "expected": {
+        "full_motion_reviewed": "not_executed",
+        "audio_listened": "not_executed",
+        "no_static_as_full_quality": true
+      }
+    }
+  ]
+}
