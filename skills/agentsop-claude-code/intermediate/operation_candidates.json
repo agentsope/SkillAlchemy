@@ -1,0 +1,211 @@
+{
+  "project": "Claude Code",
+  "version": "1.0.0",
+  "extracted_at": "2026-10-22",
+  "dimensions": [
+    {
+      "id": "R1",
+      "name": "Architecture & Mental Model",
+      "operations": [
+        {
+          "operation": "treat the session as an agentic loop, not Q&A",
+          "trigger": "session start",
+          "decision_rule": "model reads context, picks a tool, observes the result, then decides the next step; give it instructions it can verify from tool output",
+          "evidence_cite": "code.claude.com/docs"
+        },
+        {
+          "operation": "manage three context layers",
+          "trigger": "context planning",
+          "decision_rule": "write recurring rules into CLAUDE.md (system layer), trim session history with /clear or /compact, let the model read files on demand",
+          "evidence_cite": "code.claude.com/docs (CLAUDE.md, memory)"
+        },
+        {
+          "operation": "prefer dedicated file tools over Bash",
+          "trigger": "locating or editing files",
+          "decision_rule": "Glob for filenames, Grep for content, Read with offset/limit for regions, Edit for minimal diffs; Bash only for builds/tests/git",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "respect permission and safety boundaries",
+          "trigger": "irreversible or outward-facing action",
+          "decision_rule": "confirm before delete/overwrite/push/external publish unless explicitly authorized; never touch production without approval",
+          "evidence_cite": "code.claude.com/docs (permissions)"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "SOP Workflow",
+      "operations": [
+        {
+          "operation": "establish context first",
+          "trigger": "session start",
+          "decision_rule": "check for CLAUDE.md, run /init if missing and task is complex, map the tree with Glob",
+          "evidence_cite": "code.claude.com/docs (CLAUDE.md)"
+        },
+        {
+          "operation": "locate before reading",
+          "trigger": "editing code",
+          "decision_rule": "Grep keyword / Glob filename to a concrete file:line, then Read the region with offset/limit",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "decompose into verifiable steps",
+          "trigger": "large task",
+          "decision_rule": "split into 2-5 steps, each with a done-criterion (test passes, command exits 0, error gone)",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "edit minimally, match surrounding style",
+          "trigger": "making a change",
+          "decision_rule": "use Edit for the smallest diff; match naming, comment density, and idiom of the surrounding code",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "verify every change",
+          "trigger": "after each edit",
+          "decision_rule": "run the targeted test/command; report real output, never claim success without evidence",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "practice context hygiene",
+          "trigger": "topic switch or long history",
+          "decision_rule": "/clear on topic change, /compact to compress while keeping the thread, move durable rules to CLAUDE.md",
+          "evidence_cite": "code.claude.com/docs (CLI commands)"
+        },
+        {
+          "operation": "close out with a diff review",
+          "trigger": "task complete",
+          "decision_rule": "git status + git diff to confirm scope; commit/push only when the user asks",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "Dilemma Cases",
+      "operations": [
+        {
+          "operation": "confirm a change did not break anything",
+          "trigger": "edit done, unsure of correctness",
+          "decision_rule": "git diff -> targeted test/command -> feed real error back to the model",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "recover a bloated, forgetful session",
+          "trigger": "slow/truncated responses, model forgets context",
+          "decision_rule": "/clear -> write rules to CLAUDE.md -> /compact -> split into new sessions",
+          "evidence_cite": "code.claude.com/docs (CLI commands)"
+        },
+        {
+          "operation": "choose inline work vs subagent",
+          "trigger": "task decomposes into independent parts",
+          "decision_rule": "delegate only clearly independent, parallelizable subtasks; a few lookups are cheaper inline; do not redo delegated work",
+          "evidence_cite": "code.claude.com/docs (subagents)"
+        },
+        {
+          "operation": "decide how to read a large file",
+          "trigger": "facing a multi-thousand-line file",
+          "decision_rule": "Grep to the symbol/region, then Read with offset/limit; full reads only when whole-file understanding is required",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "steer the model away from Bash for search",
+          "trigger": "model runs find/cat/grep in Bash",
+          "decision_rule": "redirect to Glob/Grep/Read; they surface in the permission UI and cite file:line",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "decide what belongs in CLAUDE.md",
+          "trigger": "repeating the same instruction",
+          "decision_rule": "if you say it more than once, persist it to CLAUDE.md instead of restating it",
+          "evidence_cite": "code.claude.com/docs (memory)"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "Anti-Patterns & Boundaries",
+      "operations": [
+        {
+          "operation": "avoid cat-ing whole large files",
+          "trigger": "reading a big file",
+          "decision_rule": "Grep + Read offset/limit instead",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "avoid find/grep/cat in Bash for search",
+          "trigger": "locating code",
+          "decision_rule": "use Glob/Grep/Read",
+          "evidence_cite": "code.claude.com/docs (tool reference)"
+        },
+        {
+          "operation": "avoid one giant multi-change turn",
+          "trigger": "many unrelated edits",
+          "decision_rule": "split into 2-5 verifiable steps",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "avoid claiming done without verification",
+          "trigger": "completing a change",
+          "decision_rule": "run the test/command and report the actual output",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        },
+        {
+          "operation": "avoid restating conventions each time",
+          "trigger": "recurring style/rule",
+          "decision_rule": "write it into CLAUDE.md once",
+          "evidence_cite": "code.claude.com/docs (memory)"
+        },
+        {
+          "operation": "never push/delete/external-publish without authorization",
+          "trigger": "irreversible or outward-facing action",
+          "decision_rule": "confirm first unless durably authorized",
+          "evidence_cite": "code.claude.com/docs (permissions)"
+        },
+        {
+          "operation": "never touch production without explicit approval",
+          "trigger": "production/database change",
+          "decision_rule": "hard boundary; refuse unless authorized",
+          "evidence_cite": "code.claude.com/docs (permissions)"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "Ecosystem Context",
+      "operations": [
+        {
+          "operation": "position by interaction model",
+          "trigger": "choosing a coding agent",
+          "decision_rule": "Claude Code is Anthropic's permission-gated agentic CLI/IDE/desktop; Aider is a git-native terminal REPL; Cursor is a closed-source IDE fork; Cline is a VS Code extension with per-action approval; Codex is OpenAI's CLI/cloud agent",
+          "evidence_cite": "code.claude.com/docs; official tool docs"
+        },
+        {
+          "operation": "reach for Claude Code when ...",
+          "trigger": "Claude-model workflows",
+          "decision_rule": "deep agentic loop, CLAUDE.md project memory, skills, subagents, hooks, MCP; tightest Claude integration",
+          "evidence_cite": "code.claude.com/docs"
+        },
+        {
+          "operation": "reach for Aider when ...",
+          "trigger": "git-native terminal editing",
+          "decision_rule": "you live in the terminal and want per-edit git commits and repo-map context",
+          "evidence_cite": "aider.chat/docs"
+        },
+        {
+          "operation": "reach for an IDE tool when ...",
+          "trigger": "visual/inline editing",
+          "decision_rule": "Cursor for autocomplete + inline multi-file edits; Cline for per-step approval in VS Code",
+          "evidence_cite": "cursor.com, cline.bot"
+        },
+        {
+          "operation": "mind the context/verification discipline regardless of tool",
+          "trigger": "any coding agent",
+          "decision_rule": "feed right context, decompose verifiably, verify every change - tool-agnostic",
+          "evidence_cite": "code.claude.com/docs (best practices)"
+        }
+      ]
+    }
+  ]
+}
