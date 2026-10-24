@@ -1,0 +1,186 @@
+{
+  "project": "AgenticDataBench (trajectory → semantic ops)",
+  "version": "1.0.0",
+  "extracted_at": "2026-10-24",
+  "dimensions": [
+    {
+      "id": "R1",
+      "name": "Architecture & Mental Model",
+      "operations": [
+        {
+          "operation": "keep three skill/operator concepts separate",
+          "trigger": "naming or reusing a semantic operator",
+          "decision_rule": "LOTUS-style op ≠ task-capability label ≠ runtime SKILL.md; a name like sem_join gives no guarantee of inherited semantics",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §一"
+        },
+        {
+          "operation": "read trajectory as evidence, not narration",
+          "trigger": "inspecting an agent trace",
+          "decision_rule": "trust command/exit_code/output/score over message prose; exit_code marks where it broke, not where it erred",
+          "evidence_cite": "trajectory.json / agent_trace.txt samples"
+        },
+        {
+          "operation": "record five operator fields",
+          "trigger": "writing a semantic operator",
+          "decision_rule": "applicability / input semantics / operation decision / output constraints / validation-and-repair must all be present",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §六"
+        },
+        {
+          "operation": "treat row-count change as unverified, not wrong",
+          "trigger": "checking a join/window result",
+          "decision_rule": "compare against pre-bound expected relationship; one-to-many may be required; report unverified without evidence",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §六"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "SOP Workflow",
+      "operations": [
+        {
+          "operation": "collect scores AND trajectories together",
+          "trigger": "gathering history for optimization",
+          "decision_rule": "scores without trajectories = symptoms without diagnosis; trajectories without scores = events without verdicts",
+          "evidence_cite": "opt_common.py collect_history"
+        },
+        {
+          "operation": "compress actions preferring failed steps",
+          "trigger": "reducing a trajectory to text",
+          "decision_rule": "anchor on exit≠0 steps first, then tail; truncate on budget (default 6000 chars, OPT_HISTORY_CHARS override)",
+          "evidence_cite": "opt_common.py _trajectory_text"
+        },
+        {
+          "operation": "classify per-task trend into five classes",
+          "trigger": "ranking history material",
+          "decision_rule": "persistent_fail → regressed → flat_partial first; skip stable_success; keep improved",
+          "evidence_cite": "opt_common.py classify"
+        },
+        {
+          "operation": "inject history as a bundle, not flat",
+          "trigger": "feeding history into a skill optimizer",
+          "decision_rule": "put material in references/history_material.md so main file stays lean (3877 vs 9873 chars)",
+          "evidence_cite": "SKILLOPT_HISTORY_PATCH.md §七"
+        },
+        {
+          "operation": "strip the material after optimization",
+          "trigger": "producing the clean next-generation skill",
+          "decision_rule": "remove the SKILLOPT_HISTORY_START/END block; verify inject→strip is byte-identical",
+          "evidence_cite": "SKILLOPT_HISTORY_PATCH.md §二"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "Dilemma Cases",
+      "operations": [
+        {
+          "dilemma": "invocation count rose with score",
+          "trigger": "wanting to claim the skill mechanism works",
+          "decision_rule": "split discovery/activation/load/adoption/outcome; zero invocation ≠ zero effect, success invocation ≠ adoption",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §三/§四"
+        },
+        {
+          "dilemma": "4-task gate is noisy",
+          "trigger": "accept/reject decision flips on re-measure",
+          "decision_rule": "expand to ≥8 tasks × 2 runs or 4 × 3; replace ceiling/floor tasks (always 1.0 / ~0)",
+          "evidence_cite": "SkillOpt_两种优化方式分析.md §二"
+        },
+        {
+          "dilemma": "skill bloats and rules fight",
+          "trigger": "generations reversing prior rules, zero deletion",
+          "decision_rule": "cap per-generation diff (≤8 lines), forbid reversals; length is non-monotonic with score",
+          "evidence_cite": "SkillOpt_两种优化方式分析.md §一/§四"
+        },
+        {
+          "dilemma": "train flat but test improved",
+          "trigger": "no visible training gain",
+          "decision_rule": "use repeat ≥ 3; treat train/gate/test as disjoint samples; group by data-source family",
+          "evidence_cite": "SkillOpt_两种优化方式分析.md §三"
+        },
+        {
+          "dilemma": "references linked but never read",
+          "trigger": "body links exist, no read in trace",
+          "decision_rule": "a link is an entry point, not a load; measure 'resource actually read' separately",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §三"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "Anti-Patterns & Boundaries",
+      "operations": [
+        {
+          "anti_pattern": "write instance answers / task IDs / test-set columns into the skill",
+          "rationale": "overfits, pollutes the operator, leaks evaluation; constraints survive task change, answers do not",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §八"
+        },
+        {
+          "anti_pattern": "extract operators from environment artifacts",
+          "rationale": "PowerShell quoting or D:\\ path-in-Linux failures are harness bugs, not skill gaps",
+          "evidence_cite": "SKILLOPT_HISTORY_PATCH.md §七/§十三"
+        },
+        {
+          "anti_pattern": "gate a skill edit on 4 single-run tasks",
+          "rationale": "±0.22 noise ≈ the signal; accept/reject becomes a coin flip",
+          "evidence_cite": "SkillOpt_两种优化方式分析.md §二"
+        },
+        {
+          "anti_pattern": "treat invocation count as adoption",
+          "rationale": "invocation ≠ correct use; measure load and adoption separately",
+          "evidence_cite": "IDEA_ASSESSMENT_2026-09-19.md §三"
+        },
+        {
+          "anti_pattern": "preset deeper disclosure as better",
+          "rationale": "progressive-disclosure benefit is scale/harness-dependent; it is a hypothesis to test",
+          "evidence_cite": "Skill Blocks 2608.14943, SkillJuror 2606.11543"
+        },
+        {
+          "mistake": "steer optimization with single-run training scores",
+          "fix": "use repeat ≥ 3; per-task noise ±0.125 drowns single-run signal",
+          "evidence_cite": "SkillOpt_两种优化方式分析.md §三"
+        },
+        {
+          "mistake": "read exit_code=0 as 'correct'",
+          "fix": "cross-check output artifact and score; a 0-exit step can still compute the wrong granularity/unit/window",
+          "evidence_cite": "trajectory.json samples"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "Ecosystem Context",
+      "operations": [
+        {
+          "comparison": "this SOP vs SkillOpt",
+          "axis": "role",
+          "decision": "SkillOpt = bounded-edit optimizer; this SOP = the history-material front-end (what to feed, how to keep it out of the body)",
+          "evidence_cite": "SkillOpt 2605.23904"
+        },
+        {
+          "comparison": "this SOP vs SemPipes / EvoDS / EvoSkill",
+          "axis": "novelty claim",
+          "decision": "data-science semantic-op optimization is close prior; differentiate via data-semantic state, composition constraints, local feedback",
+          "evidence_cite": "SemPipes 2602.05134, EvoDS 2606.03841, EvoSkill 2603.02766"
+        },
+        {
+          "comparison": "this SOP vs Skill Blocks / SkillJuror",
+          "axis": "disclosure",
+          "decision": "they already run flat-vs-progressive controls; do not preset deeper-as-better, control knowledge amount",
+          "evidence_cite": "Skill Blocks 2608.14943, SkillJuror 2606.11543"
+        },
+        {
+          "comparison": "this SOP vs LOTUS / DocETL / Abacus",
+          "axis": "layer",
+          "decision": "those rewrite pipelines; this makes data semantics between operations checkable",
+          "evidence_cite": "LOTUS 2407.11418, DocETL 2410.12189, Abacus 2505.14661"
+        },
+        {
+          "comparison": "this SOP vs COBRA-Skills",
+          "axis": "cost baseline",
+          "decision": "if optimization efficiency is the claim, COBRA-Skills is the newer baseline, not hand-written skills",
+          "evidence_cite": "COBRA-Skills 2609.11682"
+        }
+      ]
+    }
+  ]
+}
